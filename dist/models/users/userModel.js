@@ -67,6 +67,7 @@ const UserSchema = new mongoose_1.Schema({
     staffPositions: { type: String },
     staffRanking: { type: Number },
     salary: { type: Number, default: 0 },
+    penHouse: { type: String },
     totalPurchase: { type: Number, default: 0 },
     status: { type: String, default: 'User' },
 }, {

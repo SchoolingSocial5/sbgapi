@@ -39,6 +39,7 @@ const PositionSchema = new mongoose_1.Schema({
     role: { type: String },
     position: { type: String },
     duties: { type: String },
+    penHouse: { type: String },
     level: { type: Number },
     salary: { type: Number },
     allowSignup: { type: Boolean },

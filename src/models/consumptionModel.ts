@@ -12,6 +12,8 @@ export interface IConsumption extends Document {
   weight: string
   remark: string
   consumptionUnit: string
+  pen: string
+  staffName: string
 }
 
 const ConsumptionSchema: Schema = new Schema(
@@ -27,6 +29,8 @@ const ConsumptionSchema: Schema = new Schema(
     weight: { type: String },
     remark: { type: String },
     consumptionUnit: { type: String },
+    pen: { type: String },
+    staffName: { type: String },
     createdAt: { type: Date, default: Date.now },
   },
   {

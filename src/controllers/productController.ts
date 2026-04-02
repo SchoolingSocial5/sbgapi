@@ -165,6 +165,8 @@ export const postProductStock = async (
       const percent = req.body.units / (stock.units)
       await Product.findByIdAndUpdate(req.body.parentProductId, { percentageProduction: percent })
       req.body.percentageProduction = percent
+      req.body.purchaseUnit = product.purchaseUnit
+      req.body.unitPerPurchase = product.unitPerPurchase
     }
 
     const stocking = await Stocking.create(req.body)

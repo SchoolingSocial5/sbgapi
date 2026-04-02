@@ -68,6 +68,9 @@ const StockingSchema = new mongoose_1.Schema({
     amount: { type: Number },
     percentageProduction: { type: Number },
     isProfit: { type: Boolean },
+    pen: { type: String },
+    purchaseUnit: { type: String },
+    unitPerPurchase: { type: Number },
     createdAt: { type: Date, default: Date.now },
 }, {
     timestamps: true,

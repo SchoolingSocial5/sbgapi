@@ -47,6 +47,8 @@ const ConsumptionSchema = new mongoose_1.Schema({
     weight: { type: String },
     remark: { type: String },
     consumptionUnit: { type: String },
+    pen: { type: String },
+    staffName: { type: String },
     createdAt: { type: Date, default: Date.now },
 }, {
     timestamps: true,

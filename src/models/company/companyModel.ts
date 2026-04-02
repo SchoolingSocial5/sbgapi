@@ -4,6 +4,7 @@ export interface IPosition extends Document {
   role: string
   position: string
   duties: string
+  penHouse: string
   level: number
   salary: number
   phone: string
@@ -15,6 +16,7 @@ const PositionSchema: Schema = new Schema(
     role: { type: String },
     position: { type: String },
     duties: { type: String },
+    penHouse: { type: String },
     level: { type: Number },
     salary: { type: Number },
     allowSignup: { type: Boolean },

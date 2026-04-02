@@ -57,6 +57,9 @@ export interface IStocking extends Document {
   amount: number
   percentageProduction: number
   isProfit: boolean
+  pen: string
+  purchaseUnit: string
+  unitPerPurchase: number
 }
 
 const StockingSchema: Schema = new Schema(
@@ -71,6 +74,9 @@ const StockingSchema: Schema = new Schema(
     amount: { type: Number },
     percentageProduction: { type: Number },
     isProfit: { type: Boolean },
+    pen: { type: String },
+    purchaseUnit: { type: String },
+    unitPerPurchase: { type: Number },
     createdAt: { type: Date, default: Date.now },
   },
   {

@@ -131,9 +131,16 @@ export const createTrasanction = async (req: Request, res: Response) => {
 
     await Product.bulkWrite(bulkOps)
     const sales = await Transaction.countDocuments()
-    req.body.invoiceNumber = `PG-${req.body.invoiceNumber}${sales + 1}`
+    req.body.invoiceNumber = `SBG-${req.body.invoiceNumber}${sales + 1}`
     const transaction = await Transaction.create(req.body)
     if (req.body.userId === '') {
+      const existingUser = await User.findOne({ phone: req.body.phone })
+      if (existingUser) {
+        return res.status(400).json({
+          message: `A customer with this phone number (${req.body.phone}) already exists. Please search and select the customer instead of entering details again.`,
+        })
+      }
+
       await User.findOneAndUpdate(
         { phone: req.body.phone },
         {
@@ -152,6 +159,7 @@ export const createTrasanction = async (req: Request, res: Response) => {
         $inc: { totalPurchase: req.body.totalAmount },
       }
     )
+    /*
     let notificationResult = null
 
     if (req.body.partPayment) {
@@ -173,6 +181,7 @@ export const createTrasanction = async (req: Request, res: Response) => {
         unread: notificationResult.unread,
       })
     }
+    */
 
     io.emit('transaction', { transaction })
 
@@ -181,7 +190,7 @@ export const createTrasanction = async (req: Request, res: Response) => {
       message: 'The transaction has been created successfully.',
       result,
       transaction,
-      notificationResult,
+      notificationResult: null,
     })
   } catch (error: any) {
     handleError(res, undefined, undefined, error)
@@ -191,16 +200,16 @@ export const createTrasanction = async (req: Request, res: Response) => {
 export const massDeleteTrasanction = async (req: Request, res: Response) => {
   try {
     const transactions = await Transaction.find({ _id: { $in: req.body.ids } })
-    await Transaction.deleteMany({ _id: { $in: req.body.ids } })
     for (let x = 0; x < transactions.length; x++) {
       const tx = transactions[x]
       for (let i = 0; i < tx.cartProducts.length; i++) {
         const cart = tx.cartProducts[i]
-        Product.findByIdAndUpdate(cart._id, {
+        await Product.findByIdAndUpdate(cart._id, {
           $inc: { units: cart.cartUnits * cart.unitPerPurchase },
         })
       }
     }
+    await Transaction.deleteMany({ _id: { $in: req.body.ids } })
 
     const result = await queryData<ITransaction>(Transaction, req)
     res.status(200).json({
@@ -226,6 +235,30 @@ export const getTransactions = async (
 
 export const updateTransaction = async (req: Request, res: Response) => {
   try {
+    const oldTransaction = await Transaction.findById(req.params.id)
+    if (!oldTransaction) {
+      return res.status(404).json({ message: 'Transaction not found' })
+    }
+
+    // Sync inventory if cartUnits changed
+    if (req.body.cartProducts) {
+      const newCart = Array.isArray(req.body.cartProducts) ? req.body.cartProducts : JSON.parse(req.body.cartProducts)
+      const oldCart = oldTransaction.cartProducts
+
+      for (const newItem of newCart) {
+        const oldItem = oldCart.find((oi: any) => oi._id.toString() === newItem._id.toString())
+        if (oldItem) {
+          const diff = oldItem.cartUnits - newItem.cartUnits
+          if (diff !== 0) {
+            await Product.findByIdAndUpdate(newItem._id, {
+              $inc: { units: diff * (newItem.unitPerPurchase || 1) },
+            })
+          }
+        }
+      }
+      req.body.cartProducts = newCart
+    }
+
     await Transaction.findByIdAndUpdate(req.params.id, req.body)
 
     const result = await queryData<ITransaction>(Transaction, req)
