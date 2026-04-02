@@ -132,6 +132,15 @@ export const createTrasanction = async (req: Request, res: Response) => {
     await Product.bulkWrite(bulkOps)
     const sales = await Transaction.countDocuments()
     req.body.invoiceNumber = `SBG-${req.body.invoiceNumber}${sales + 1}`
+
+    if (!req.body.email || req.body.email.trim() === '' || req.body.email === 'undefined') {
+      const namePart = req.body.fullName
+        ? req.body.fullName.toLowerCase().replace(/[^a-z0-9]/g, '')
+        : 'customer'
+      const randomPart = Math.floor(1000 + Math.random() * 9000)
+      req.body.email = `${namePart}${randomPart}@sbg.com`
+    }
+
     const transaction = await Transaction.create(req.body)
     if (req.body.userId === '') {
       const existingUser = await User.findOne({ phone: req.body.phone })

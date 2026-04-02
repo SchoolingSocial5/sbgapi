@@ -26,6 +26,8 @@ import socialRoutes from './routes/socialRoutes'
 import salaryRoutes from './routes/salaryRoutes'
 import transactionRoutes from './routes/transactionRoutes'
 import userRoutes from './routes/users/userRoutes'
+import columnRoutes from './routes/columnRoutes'
+import penRoutes from './routes/penRoutes'
 // import { geoipMiddleware } from './middlewares/geoipMiddleware'
 import { UsersSocket } from './routes/socket/usersSocket'
 import { createActivity } from './controllers/activityController'
@@ -121,6 +123,8 @@ app.use('/api/v1/socials', socialRoutes)
 app.use('/api/v1/summary', summaryRoutes)
 app.use('/api/v1/users', userRoutes)
 app.use('/api/v1/visitors', visitorRoutes)
+app.use('/api/v1/columns', columnRoutes)
+app.use('/api/v1/pens', penRoutes)
 
 app.use((req, res, next) => {
   handleError(res, 404, `Request not found: ${req.method} ${req.originalUrl}`)
