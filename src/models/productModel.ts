@@ -13,6 +13,8 @@ export interface IProduct extends Document {
   percentageProduction: number
   description: string
   picture: string
+  type: 'Feed' | 'Medicine' | 'Livestock' | 'General'
+  isProducing: boolean
   createdAt: Date
   seoTitle: string
   supName: string
@@ -38,6 +40,8 @@ const ProductSchema: Schema = new Schema(
     discount: { type: Number },
     costPrice: { type: Number },
     isBuyable: { type: Boolean, default: false },
+    type: { type: String, enum: ['Feed', 'Medicine', 'Livestock', 'General'], default: 'General' },
+    isProducing: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now },
   },
   {

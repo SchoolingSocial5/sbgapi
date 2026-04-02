@@ -120,11 +120,21 @@ export const createTrasanction = async (req: Request, res: Response) => {
       })
     }
 
+    // --- NEW VALIDATION: Customer check before any mutation ---
+    if (req.body.userId === '' || !req.body.userId) {
+      const existingUser = await User.findOne({ phone: req.body.phone })
+      if (existingUser) {
+        return res.status(400).json({
+          message: `A customer with this phone number (${req.body.phone}) already exists. Please search and select the customer instead of entering details again.`,
+        })
+      }
+    }
+
     const bulkOps = cartProducts.map((cartItem) => ({
       updateOne: {
         filter: { _id: cartItem._id },
         update: {
-          $inc: { units: -cartItem.cartUnits * cartItem.unitPerPurchase },
+          $inc: { units: -cartItem.cartUnits * (cartItem.unitPerPurchase || 1) },
         },
       },
     }))
@@ -142,14 +152,8 @@ export const createTrasanction = async (req: Request, res: Response) => {
     }
 
     const transaction = await Transaction.create(req.body)
-    if (req.body.userId === '') {
-      const existingUser = await User.findOne({ phone: req.body.phone })
-      if (existingUser) {
-        return res.status(400).json({
-          message: `A customer with this phone number (${req.body.phone}) already exists. Please search and select the customer instead of entering details again.`,
-        })
-      }
 
+    if (!req.body.userId || req.body.userId === '') {
       await User.findOneAndUpdate(
         { phone: req.body.phone },
         {
