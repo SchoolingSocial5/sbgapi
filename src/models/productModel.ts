@@ -20,6 +20,7 @@ export interface IProduct extends Document {
   supName: string
   supAddress: string
   supPhone: string
+  pId: string
 }
 
 const ProductSchema: Schema = new Schema(
@@ -42,6 +43,7 @@ const ProductSchema: Schema = new Schema(
     isBuyable: { type: Boolean, default: false },
     type: { type: String, enum: ['Feed', 'Medicine', 'Water', 'Livestock', 'General'], default: 'General' },
     isProducing: { type: Boolean, default: false },
+    pId: { type: String },
     createdAt: { type: Date, default: Date.now },
   },
   {

@@ -22,13 +22,47 @@ const createConsumption = (req, res) => __awaiter(void 0, void 0, void 0, functi
         uploadedFiles.forEach((file) => {
             req.body[file.fieldName] = file.s3Url;
         });
-        const product = req.body.feed;
-        if (!product.toLowerCase().includes("water")) {
-            yield productModel_1.Product.findByIdAndUpdate(req.body.feedId, {
-                $inc: { units: -1 * (req.body.consumption || 1) },
+        const feedId = req.body.feedId;
+        const consumptionAmount = Number(req.body.consumption || 1);
+        const pro = yield productModel_1.Product.findById(feedId);
+        if (!pro) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+        // 1) Stock Check: Prevent negative stock
+        const productName = req.body.feed || pro.name;
+        if (!productName.toLowerCase().includes("water")) {
+            if (pro.units < consumptionAmount) {
+                return res.status(400).json({
+                    message: `Insufficient stock for ${pro.name}. Current stock: ${pro.units}, Required: ${consumptionAmount}`
+                });
+            }
+            yield productModel_1.Product.findByIdAndUpdate(feedId, {
+                $inc: { units: -1 * consumptionAmount },
             });
         }
-        const pro = yield productModel_1.Product.findById(req.body.feedId);
+        // 2) Empty Bag Logic with Purchase Unit Sync
+        if (pro.type === 'Feed') {
+            const emptyBag = yield productModel_1.Product.findOne({ pId: pro._id });
+            if (emptyBag) {
+                yield productModel_1.Product.findByIdAndUpdate(emptyBag._id, {
+                    $inc: { units: consumptionAmount },
+                    picture: pro.picture,
+                    purchaseUnit: pro.purchaseUnit, // Sync purchase unit
+                });
+            }
+            else {
+                yield productModel_1.Product.create({
+                    name: `Empty Bag of ${pro.name}`,
+                    pId: pro._id,
+                    units: consumptionAmount,
+                    unitPerPurchase: 1,
+                    type: 'General',
+                    isBuyable: true,
+                    picture: pro.picture,
+                    purchaseUnit: pro.purchaseUnit, // Copy purchase unit from source
+                });
+            }
+        }
         req.body.amount = Number(pro.costPrice) * Number(req.body.consumption);
         req.body.unitPrice = Number(pro.costPrice);
         const consumption = yield consumptionModel_1.Consumption.create(req.body);

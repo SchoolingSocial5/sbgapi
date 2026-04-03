@@ -27,6 +27,7 @@ const consumptionRoutes_1 = __importDefault(require("./routes/consumptionRoutes"
 const faqRoutes_1 = __importDefault(require("./routes/faqRoutes"));
 const serviceRoutes_1 = __importDefault(require("./routes/serviceRoutes"));
 const marketingRoutes_1 = __importDefault(require("./routes/marketingRoutes"));
+const mortalityRoutes_1 = __importDefault(require("./routes/mortalityRoutes"));
 const strategyRoutes_1 = __importDefault(require("./routes/strategyRoutes"));
 const emailRoutes_1 = __importDefault(require("./routes/emailRoutes"));
 const equipmentRoutes_1 = __importDefault(require("./routes/equipmentRoutes"));
@@ -108,6 +109,7 @@ app.use('/api/v1/applications', applicationRoutes_1.default);
 app.use('/api/v1/company', companyRoutes_1.default);
 app.use('/api/v1/consumptions', consumptionRoutes_1.default);
 app.use('/api/v1/marketing', marketingRoutes_1.default);
+app.use('/api/v1/mortalities', mortalityRoutes_1.default);
 app.use('/api/v1/strategies', strategyRoutes_1.default);
 app.use('/api/v1/faqs', faqRoutes_1.default);
 app.use('/api/v1/services', serviceRoutes_1.default);

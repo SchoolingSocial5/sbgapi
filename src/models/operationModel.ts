@@ -16,6 +16,7 @@ export interface IOperation extends Document {
     productId: string
     productName: string
     unitName: string
+    unitPerPurchase: number
     staffName: string
     userId: string
 }
@@ -36,6 +37,7 @@ const OperationSchema: Schema = new Schema(
         productId: { type: String },
         productName: { type: String },
         unitName: { type: String },
+        unitPerPurchase: { type: Number, default: 1 },
         staffName: { type: String },
         userId: { type: String },
         createdAt: { type: Date, default: Date.now },

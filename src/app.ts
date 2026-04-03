@@ -12,6 +12,7 @@ import consumptionRoutes from './routes/consumptionRoutes'
 import faqRoutes from './routes/faqRoutes'
 import serviceRoutes from './routes/serviceRoutes'
 import marketingRoutes from './routes/marketingRoutes'
+import mortalityRoutes from './routes/mortalityRoutes'
 import strategyRoutes from './routes/strategyRoutes'
 import emailRoutes from './routes/emailRoutes'
 import equipmentRoutes from './routes/equipmentRoutes'
@@ -107,6 +108,7 @@ app.use('/api/v1/applications', applicationRoutes)
 app.use('/api/v1/company', companyRoutes)
 app.use('/api/v1/consumptions', consumptionRoutes)
 app.use('/api/v1/marketing', marketingRoutes)
+app.use('/api/v1/mortalities', mortalityRoutes)
 app.use('/api/v1/strategies', strategyRoutes)
 app.use('/api/v1/faqs', faqRoutes)
 app.use('/api/v1/services', serviceRoutes)

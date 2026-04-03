@@ -3,6 +3,7 @@ import { queryData, search } from '../utils/query'
 import { uploadFilesToS3 } from '../utils/fileUpload'
 import { handleError } from '../utils/errorHandler'
 import { IOperation, Operation } from '../models/operationModel'
+import { Product } from '../models/productModel'
 
 export const createOperation = async (
     req: Request,
@@ -15,6 +16,18 @@ export const createOperation = async (
         })
 
         await Operation.create(req.body)
+
+        // If a product is linked, sum production units and add to stock
+        if (req.body.productId) {
+            const productionData: { columnId: string; name: string; units: number }[] = req.body.productionData || []
+            const totalUnits = productionData.reduce((sum, item) => sum + Number(item.units || 0), 0)
+            if (totalUnits > 0) {
+                await Product.findByIdAndUpdate(req.body.productId, {
+                    $inc: { units: totalUnits },
+                })
+            }
+        }
+
         const result = await queryData<IOperation>(Operation, req)
         res.status(200).json({
             message: 'Operation was created successfully',

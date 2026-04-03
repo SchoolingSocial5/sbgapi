@@ -18,6 +18,9 @@ import { Transaction } from '../../models/transactionModel'
 import { Product, Stocking } from '../../models/productModel'
 import { Equipment } from '../../models/equipmentModel'
 import { Activity } from '../../models/activityModel'
+import { Consumption } from '../../models/consumptionModel'
+import { Mortality } from '../../models/mortalityModel'
+import { Operation } from '../../models/operationModel'
 
 export const updateCompany = async (
   req: Request,
@@ -68,14 +71,24 @@ export const resetRecord = async (
   res: Response
 ): Promise<Response | void> => {
   try {
+    // Zero out all product stock units
+    await Product.updateMany({}, { $set: { units: 0 } })
+    await Stocking.updateMany({}, { $set: { units: 0, amount: 0 } })
+
+    // Delete all sales transactions
     await Transaction.deleteMany()
+
+    // Delete operational records
+    await Consumption.deleteMany()
+    await Mortality.deleteMany()
+    await Operation.deleteMany()
+
+    // Clean up other related records
     await Activity.deleteMany()
     await Equipment.deleteMany()
-    await Product.updateMany({}, { $set: { units: 0 } });
-    await Stocking.updateMany({}, { $set: { units: 0, amount: 0 } });
-    await User.updateMany({}, { $set: { totalPurchase: 0 } });
+    await User.updateMany({}, { $set: { totalPurchase: 0 } })
 
-    res.status(200).json({ message: 'The records where all reset successfully.' })
+    res.status(200).json({ message: 'The records were all reset successfully.' })
   } catch (error) {
     handleError(res, undefined, undefined, error)
   }

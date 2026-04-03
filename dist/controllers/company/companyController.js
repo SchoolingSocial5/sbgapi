@@ -18,6 +18,9 @@ const transactionModel_1 = require("../../models/transactionModel");
 const productModel_1 = require("../../models/productModel");
 const equipmentModel_1 = require("../../models/equipmentModel");
 const activityModel_1 = require("../../models/activityModel");
+const consumptionModel_1 = require("../../models/consumptionModel");
+const mortalityModel_1 = require("../../models/mortalityModel");
+const operationModel_1 = require("../../models/operationModel");
 const updateCompany = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         if (req.body.id) {
@@ -62,13 +65,20 @@ const getCompany = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
 exports.getCompany = getCompany;
 const resetRecord = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        yield transactionModel_1.Transaction.deleteMany();
-        yield activityModel_1.Activity.deleteMany();
-        yield equipmentModel_1.Equipment.deleteMany();
+        // Zero out all product stock units
         yield productModel_1.Product.updateMany({}, { $set: { units: 0 } });
         yield productModel_1.Stocking.updateMany({}, { $set: { units: 0, amount: 0 } });
+        // Delete all sales transactions
+        yield transactionModel_1.Transaction.deleteMany();
+        // Delete operational records
+        yield consumptionModel_1.Consumption.deleteMany();
+        yield mortalityModel_1.Mortality.deleteMany();
+        yield operationModel_1.Operation.deleteMany();
+        // Clean up other related records
+        yield activityModel_1.Activity.deleteMany();
+        yield equipmentModel_1.Equipment.deleteMany();
         yield userModel_1.User.updateMany({}, { $set: { totalPurchase: 0 } });
-        res.status(200).json({ message: 'The records where all reset successfully.' });
+        res.status(200).json({ message: 'The records were all reset successfully.' });
     }
     catch (error) {
         (0, errorHandler_1.handleError)(res, undefined, undefined, error);

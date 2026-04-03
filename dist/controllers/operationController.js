@@ -14,6 +14,7 @@ const query_1 = require("../utils/query");
 const fileUpload_1 = require("../utils/fileUpload");
 const errorHandler_1 = require("../utils/errorHandler");
 const operationModel_1 = require("../models/operationModel");
+const productModel_1 = require("../models/productModel");
 const createOperation = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const uploadedFiles = yield (0, fileUpload_1.uploadFilesToS3)(req);
@@ -21,6 +22,16 @@ const createOperation = (req, res) => __awaiter(void 0, void 0, void 0, function
             req.body[file.fieldName] = file.s3Url;
         });
         yield operationModel_1.Operation.create(req.body);
+        // If a product is linked, sum production units and add to stock
+        if (req.body.productId) {
+            const productionData = req.body.productionData || [];
+            const totalUnits = productionData.reduce((sum, item) => sum + Number(item.units || 0), 0);
+            if (totalUnits > 0) {
+                yield productModel_1.Product.findByIdAndUpdate(req.body.productId, {
+                    $inc: { units: totalUnits },
+                });
+            }
+        }
         const result = yield (0, query_1.queryData)(operationModel_1.Operation, req);
         res.status(200).json({
             message: 'Operation was created successfully',
