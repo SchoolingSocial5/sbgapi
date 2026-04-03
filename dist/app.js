@@ -41,6 +41,8 @@ const socialRoutes_1 = __importDefault(require("./routes/socialRoutes"));
 const salaryRoutes_1 = __importDefault(require("./routes/salaryRoutes"));
 const transactionRoutes_1 = __importDefault(require("./routes/transactionRoutes"));
 const userRoutes_1 = __importDefault(require("./routes/users/userRoutes"));
+const columnRoutes_1 = __importDefault(require("./routes/columnRoutes"));
+const penRoutes_1 = __importDefault(require("./routes/penRoutes"));
 // import { geoipMiddleware } from './middlewares/geoipMiddleware'
 const usersSocket_1 = require("./routes/socket/usersSocket");
 const activityController_1 = require("./controllers/activityController");
@@ -122,6 +124,8 @@ app.use('/api/v1/socials', socialRoutes_1.default);
 app.use('/api/v1/summary', summaryRoutes_1.default);
 app.use('/api/v1/users', userRoutes_1.default);
 app.use('/api/v1/visitors', visitorRoutes_1.default);
+app.use('/api/v1/columns', columnRoutes_1.default);
+app.use('/api/v1/pens', penRoutes_1.default);
 app.use((req, res, next) => {
     (0, errorHandler_1.handleError)(res, 404, `Request not found: ${req.method} ${req.originalUrl}`);
     next();

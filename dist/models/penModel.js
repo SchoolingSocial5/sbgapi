@@ -33,27 +33,12 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Operation = void 0;
+exports.Pen = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
-const OperationSchema = new mongoose_1.Schema({
-    livestockNumber: { type: Number },
-    livestockAge: { type: String },
-    operation: { type: String },
-    livestock: { type: String },
-    weight: { type: String },
-    remark: { type: String },
-    medication: { type: String },
-    quantity: { type: String },
-    pen: { type: String },
-    penId: { type: String },
-    productionData: { type: [Object], default: [] },
-    productId: { type: String },
-    productName: { type: String },
-    unitName: { type: String },
-    staffName: { type: String },
-    userId: { type: String },
+const PenSchema = new mongoose_1.Schema({
+    name: { type: String, required: true },
     createdAt: { type: Date, default: Date.now },
 }, {
     timestamps: true,
 });
-exports.Operation = mongoose_1.default.model('Operation', OperationSchema);
+exports.Pen = mongoose_1.default.model('Pen', PenSchema);

@@ -52,6 +52,8 @@ const ProductSchema = new mongoose_1.Schema({
     discount: { type: Number },
     costPrice: { type: Number },
     isBuyable: { type: Boolean, default: false },
+    type: { type: String, enum: ['Feed', 'Medicine', 'Water', 'Livestock', 'General'], default: 'General' },
+    isProducing: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now },
 }, {
     timestamps: true,
