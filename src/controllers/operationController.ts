@@ -15,22 +15,59 @@ export const createOperation = async (
             req.body[file.fieldName] = file.s3Url
         })
 
-        await Operation.create(req.body)
+        const data = Array.isArray(req.body) ? req.body : [req.body]
 
-        // If a product is linked, sum production units and add to stock
-        if (req.body.productId) {
-            const productionData: { columnId: string; name: string; units: number }[] = req.body.productionData || []
-            const totalUnits = productionData.reduce((sum, item) => sum + Number(item.units || 0), 0)
-            if (totalUnits > 0) {
-                await Product.findByIdAndUpdate(req.body.productId, {
-                    $inc: { units: totalUnits },
-                })
+        for (const item of data) {
+            await Operation.create(item)
+
+            // If a product is linked, sum production units and add to stock
+            if (item.productId) {
+                const productionData: { columnId: string; name: string; units: number }[] = item.productionData || []
+                const totalUnits = productionData.reduce((sum, entry) => sum + Number(entry.units || 0), 0) + Number(item.quantity || 0)
+                
+                if (totalUnits > 0) {
+                    const pro = await Product.findById(item.productId)
+                    if (pro) {
+                        // 1) Update base product stock
+                        await Product.findByIdAndUpdate(item.productId, {
+                            $inc: { units: totalUnits },
+                        })
+
+                        // 2) Specialized Manure Bag Handling
+                        if (item.productName?.toLowerCase().includes('manure') && item.unitName?.toLowerCase().includes('bag')) {
+                            const bagName = `${item.unitName} of ${item.productName}`
+                            const emptyBag = await Product.findOne({ name: bagName })
+                            if (emptyBag) {
+                                await Product.findByIdAndUpdate(emptyBag._id, {
+                                    $inc: { units: Number(item.quantity) },
+                                    picture: pro.picture,
+                                    costPrice: pro.costPrice,
+                                    price: pro.price,
+                                })
+                            } else {
+                                await Product.create({
+                                    name: bagName,
+                                    pId: pro._id,
+                                    units: Number(item.quantity),
+                                    unitPerPurchase: 1,
+                                    type: 'General',
+                                    isBuyable: true,
+                                    isProducing: false,
+                                    picture: pro.picture,
+                                    purchaseUnit: item.unitName,
+                                    costPrice: pro.costPrice,
+                                    price: pro.price,
+                                })
+                            }
+                        }
+                    }
+                }
             }
         }
 
         const result = await queryData<IOperation>(Operation, req)
         res.status(200).json({
-            message: 'Operation was created successfully',
+            message: data.length > 1 ? `${data.length} operations were created successfully` : 'Operation was created successfully',
             result,
         })
     } catch (error: any) {
