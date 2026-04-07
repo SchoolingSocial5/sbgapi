@@ -28,16 +28,45 @@ const createMortality = (req, res) => __awaiter(void 0, void 0, void 0, function
         if (!livestock) {
             return res.status(404).json({ message: 'Livestock product not found' });
         }
-        // Stock Check
-        if (livestock.units < quantity) {
-            return res.status(400).json({
-                message: `Insufficient stock for ${livestock.name}. Current stock: ${livestock.units}, Mortality: ${quantity}`
+        // Stock Check & Pen validation for Livestock
+        if (livestock.type === 'Livestock') {
+            const staffPen = req.body.pen;
+            if (!staffPen || staffPen === "No Pen Assigned") {
+                return res.status(400).json({
+                    message: 'You are not assigned to any Pen House. Operation aborted.'
+                });
+            }
+            // Check if this pen is in the distribution list
+            const distributions = livestock.penDistributions || [];
+            const penEntry = distributions.find(d => d.penName === staffPen);
+            if (!penEntry) {
+                return res.status(400).json({
+                    message: `The assigned pen (${staffPen}) does not have this livestock distributed to it.`
+                });
+            }
+            if (penEntry.units < quantity) {
+                return res.status(400).json({
+                    message: `Insufficient stock in ${staffPen} for mortality record. Pen stock: ${penEntry.units}, Mortality: ${quantity}`
+                });
+            }
+            // Decrement both total stock and pen-specific stock
+            yield productModel_1.Product.findByIdAndUpdate(productId, {
+                $inc: { units: -1 * quantity, "penDistributions.$[elem].units": -1 * quantity }
+            }, {
+                arrayFilters: [{ "elem.penName": staffPen }]
             });
         }
-        // Decrement Stock
-        yield productModel_1.Product.findByIdAndUpdate(productId, {
-            $inc: { units: -1 * quantity },
-        });
+        else {
+            // General item stock decrement
+            if (livestock.units < quantity) {
+                return res.status(400).json({
+                    message: `Insufficient stock. Current stock: ${livestock.units}, Mortality: ${quantity}`
+                });
+            }
+            yield productModel_1.Product.findByIdAndUpdate(productId, {
+                $inc: { units: -1 * quantity },
+            });
+        }
         // Cracks Product Logic: if the product name includes 'egg', track cracked eggs
         if (livestock.name.toLowerCase().includes('egg')) {
             const cracksProduct = yield productModel_1.Product.findOne({ pId: livestock._id });

@@ -9,12 +9,96 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.searchOperations = exports.getOperations = exports.updateOperation = exports.getOperation = exports.createOperation = void 0;
+exports.searchOperations = exports.deleteOperation = exports.getOperations = exports.updateOperation = exports.getOperation = exports.createOperation = exports.getPerformanceSummary = void 0;
 const query_1 = require("../utils/query");
 const fileUpload_1 = require("../utils/fileUpload");
 const errorHandler_1 = require("../utils/errorHandler");
 const operationModel_1 = require("../models/operationModel");
 const productModel_1 = require("../models/productModel");
+const consumptionModel_1 = require("../models/consumptionModel");
+const getPerformanceSummary = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { dateFrom, dateTo } = req.query;
+        const filter = { operation: 'Production' };
+        if (dateFrom && dateTo) {
+            filter.createdAt = {
+                $gte: new Date(dateFrom),
+                $lte: new Date(dateTo)
+            };
+        }
+        const operations = yield operationModel_1.Operation.find(filter).lean();
+        const consumptionFilter = {};
+        if (dateFrom && dateTo) {
+            consumptionFilter.createdAt = {
+                $gte: new Date(dateFrom),
+                $lte: new Date(dateTo)
+            };
+        }
+        const consumptions = yield consumptionModel_1.Consumption.find(consumptionFilter).lean();
+        // Group by Date (YYYY-MM-DD) and Pen
+        const summaryMap = {};
+        operations.forEach(op => {
+            var _a;
+            const date = new Date(op.createdAt).toISOString().split('T')[0];
+            const key = `${date}_${op.pen}`;
+            if (!summaryMap[key]) {
+                summaryMap[key] = {
+                    date,
+                    pen: op.pen,
+                    penId: op.penId,
+                    staffNames: new Set([op.staffName]),
+                    eggBreakdown: {}, // columnId -> units
+                    totalManure: 0,
+                    emptyBags: 0,
+                    totalEggUnits: 0
+                };
+            }
+            else {
+                summaryMap[key].staffNames.add(op.staffName);
+            }
+            const target = summaryMap[key];
+            // Handle Eggs
+            if (op.productionData && op.productionData.length > 0) {
+                op.productionData.forEach(data => {
+                    const units = Number(data.units || 0);
+                    target.eggBreakdown[data.columnId] = (target.eggBreakdown[data.columnId] || 0) + units;
+                    target.totalEggUnits += units;
+                });
+            }
+            // Handle Manure
+            if ((_a = op.productName) === null || _a === void 0 ? void 0 : _a.toLowerCase().includes('manure')) {
+                target.totalManure += Number(op.quantity || 0);
+            }
+        });
+        // Mix in Consumptions
+        consumptions.forEach(c => {
+            const date = new Date(c.createdAt).toISOString().split('T')[0];
+            const key = `${date}_${c.pen}`;
+            if (summaryMap[key]) {
+                summaryMap[key].emptyBags += Number(c.consumption || 0);
+            }
+            else {
+                // If there's consumption but no production recorded yet for that pen/day
+                summaryMap[key] = {
+                    date,
+                    pen: c.pen,
+                    staffNames: new Set([c.staffName]),
+                    eggBreakdown: {},
+                    totalManure: 0,
+                    emptyBags: Number(c.consumption || 0),
+                    totalEggUnits: 0
+                };
+            }
+        });
+        const result = Object.values(summaryMap).map((item) => (Object.assign(Object.assign({}, item), { staffName: Array.from(item.staffNames).join(', '), staffNames: undefined // clean up
+         }))).sort((a, b) => b.date.localeCompare(a.date));
+        res.status(200).json(result);
+    }
+    catch (error) {
+        (0, errorHandler_1.handleError)(res, undefined, undefined, error);
+    }
+});
+exports.getPerformanceSummary = getPerformanceSummary;
 const createOperation = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     try {
@@ -127,6 +211,46 @@ const getOperations = (req, res) => __awaiter(void 0, void 0, void 0, function* 
     }
 });
 exports.getOperations = getOperations;
+const deleteOperation = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
+    try {
+        const item = yield operationModel_1.Operation.findById(req.params.id);
+        if (!item) {
+            return res.status(404).json({ message: 'Operation not found' });
+        }
+        // If it's a production record, reverse the stock update
+        if (item.productId) {
+            const productionData = item.productionData || [];
+            const totalUnits = productionData.reduce((sum, entry) => sum + Number(entry.units || 0), 0) + Number(item.quantity || 0);
+            if (totalUnits > 0) {
+                // Decrement product stock
+                yield productModel_1.Product.findByIdAndUpdate(item.productId, {
+                    $inc: { units: -totalUnits },
+                });
+                // Specialized Manure Bag Handling
+                if (((_a = item.productName) === null || _a === void 0 ? void 0 : _a.toLowerCase().includes('manure')) && ((_b = item.unitName) === null || _b === void 0 ? void 0 : _b.toLowerCase().includes('bag'))) {
+                    const bagName = `${item.unitName} of ${item.productName}`;
+                    const emptyBag = yield productModel_1.Product.findOne({ name: bagName });
+                    if (emptyBag) {
+                        yield productModel_1.Product.findByIdAndUpdate(emptyBag._id, {
+                            $inc: { units: -Number(item.quantity) },
+                        });
+                    }
+                }
+            }
+        }
+        yield operationModel_1.Operation.findByIdAndDelete(req.params.id);
+        const result = yield (0, query_1.queryData)(operationModel_1.Operation, req);
+        res.status(200).json({
+            message: 'The operation is deleted successfully',
+            result,
+        });
+    }
+    catch (error) {
+        (0, errorHandler_1.handleError)(res, undefined, undefined, error);
+    }
+});
+exports.deleteOperation = deleteOperation;
 const searchOperations = (req, res) => {
     return (0, query_1.search)(operationModel_1.Operation, req, res);
 };

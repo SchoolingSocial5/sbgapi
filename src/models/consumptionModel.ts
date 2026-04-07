@@ -1,4 +1,4 @@
-import mongoose, { Schema } from 'mongoose'
+import mongoose, { Schema, Document } from 'mongoose'
 
 export interface IConsumption extends Document {
   _id: string
@@ -14,6 +14,7 @@ export interface IConsumption extends Document {
   consumptionUnit: string
   pen: string
   staffName: string
+  createdAt: Date
 }
 
 const ConsumptionSchema: Schema = new Schema(

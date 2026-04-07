@@ -21,6 +21,24 @@ const createProduct = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         uploadedFiles.forEach((file) => {
             req.body[file.fieldName] = file.s3Url;
         });
+        if (typeof req.body.penDistributions === 'string') {
+            try {
+                req.body.penDistributions = JSON.parse(req.body.penDistributions);
+            }
+            catch (e) {
+                console.error("Error parsing penDistributions:", e);
+            }
+        }
+        if (req.body.type === 'Livestock') {
+            const distributions = req.body.penDistributions || [];
+            const totalUnits = Number(req.body.units) || 0;
+            const distributedUnits = distributions.reduce((sum, d) => sum + Number(d.units), 0);
+            if (distributedUnits > totalUnits) {
+                return res.status(400).json({
+                    message: `Total distributed units (${distributedUnits}) exceeds product quantity (${totalUnits})`
+                });
+            }
+        }
         yield productModel_1.Product.create(req.body);
         const result = yield (0, query_1.queryData)(productModel_1.Product, req);
         res.status(200).json(Object.assign({ message: 'Product is created successfully' }, result));
@@ -50,6 +68,24 @@ const updateProduct = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         uploadedFiles.forEach((file) => {
             req.body[file.fieldName] = file.s3Url;
         });
+        if (typeof req.body.penDistributions === 'string') {
+            try {
+                req.body.penDistributions = JSON.parse(req.body.penDistributions);
+            }
+            catch (e) {
+                console.error("Error parsing penDistributions:", e);
+            }
+        }
+        if (req.body.type === 'Livestock') {
+            const distributions = req.body.penDistributions || [];
+            const totalUnits = Number(req.body.units) || 0;
+            const distributedUnits = distributions.reduce((sum, d) => sum + Number(d.units), 0);
+            if (distributedUnits > totalUnits) {
+                return res.status(400).json({
+                    message: `Total distributed units (${distributedUnits}) exceeds product quantity (${totalUnits})`
+                });
+            }
+        }
         const product = yield productModel_1.Product.findByIdAndUpdate(req.params.id, req.body, {
             new: true,
             runValidators: true,

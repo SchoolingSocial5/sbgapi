@@ -37,6 +37,16 @@ exports.Pen = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const PenSchema = new mongoose_1.Schema({
     name: { type: String, required: true },
+    livestockId: { type: String },
+    livestockName: { type: String },
+    columns: {
+        type: [
+            {
+                name: { type: String, required: true },
+            },
+        ],
+        default: [],
+    },
     createdAt: { type: Date, default: Date.now },
 }, {
     timestamps: true,

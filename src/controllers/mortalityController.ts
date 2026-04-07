@@ -24,17 +24,49 @@ export const createMortality = async (
       return res.status(404).json({ message: 'Livestock product not found' })
     }
 
-    // Stock Check
-    if (livestock.units < quantity) {
-      return res.status(400).json({ 
-        message: `Insufficient stock for ${livestock.name}. Current stock: ${livestock.units}, Mortality: ${quantity}` 
+    // Stock Check & Pen validation for Livestock
+    if (livestock.type === 'Livestock') {
+      const staffPen = req.body.pen
+      if (!staffPen || staffPen === "No Pen Assigned") {
+        return res.status(400).json({ 
+          message: 'You are not assigned to any Pen House. Operation aborted.' 
+        })
+      }
+
+      // Check if this pen is in the distribution list
+      const distributions = livestock.penDistributions || []
+      const penEntry = distributions.find(d => d.penName === staffPen)
+
+      if (!penEntry) {
+        return res.status(400).json({
+          message: `The assigned pen (${staffPen}) does not have this livestock distributed to it.`
+        })
+      }
+
+      if (penEntry.units < quantity) {
+        return res.status(400).json({ 
+          message: `Insufficient stock in ${staffPen} for mortality record. Pen stock: ${penEntry.units}, Mortality: ${quantity}` 
+        })
+      }
+
+      // Decrement both total stock and pen-specific stock
+      await Product.findByIdAndUpdate(productId, {
+        $inc: { units: -1 * quantity, "penDistributions.$[elem].units": -1 * quantity }
+      }, {
+        arrayFilters: [{ "elem.penName": staffPen }]
+      })
+    } else {
+      // General item stock decrement
+      if (livestock.units < quantity) {
+        return res.status(400).json({ 
+          message: `Insufficient stock. Current stock: ${livestock.units}, Mortality: ${quantity}` 
+        })
+      }
+
+      await Product.findByIdAndUpdate(productId, {
+        $inc: { units: -1 * quantity },
       })
     }
-
-    // Decrement Stock
-    await Product.findByIdAndUpdate(productId, {
-      $inc: { units: -1 * quantity },
-    })
 
     // Cracks Product Logic: if the product name includes 'egg', track cracked eggs
     if (livestock.name.toLowerCase().includes('egg')) {

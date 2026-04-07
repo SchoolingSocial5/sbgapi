@@ -16,11 +16,13 @@ export interface IProduct extends Document {
   type: 'Feed' | 'Medicine' | 'Water' | 'Livestock' | 'General'
   isProducing: boolean
   createdAt: Date
+  dateOfBirth?: Date
   seoTitle: string
   supName: string
   supAddress: string
   supPhone: string
   pId: string
+  penDistributions: { penId: string; penName: string; units: number }[]
 }
 
 const ProductSchema: Schema = new Schema(
@@ -44,6 +46,8 @@ const ProductSchema: Schema = new Schema(
     type: { type: String, enum: ['Feed', 'Medicine', 'Water', 'Livestock', 'General'], default: 'General' },
     isProducing: { type: Boolean, default: false },
     pId: { type: String },
+    dateOfBirth: { type: Date },
+    penDistributions: { type: [Object], default: [] },
     createdAt: { type: Date, default: Date.now },
   },
   {

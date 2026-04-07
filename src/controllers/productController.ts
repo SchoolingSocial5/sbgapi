@@ -8,12 +8,31 @@ import { io } from '../app'
 export const createProduct = async (
   req: Request,
   res: Response
-): Promise<void> => {
+): Promise<Response | void> => {
   try {
     const uploadedFiles = await uploadFilesToS3(req)
     uploadedFiles.forEach((file) => {
       req.body[file.fieldName] = file.s3Url
     })
+
+    if (typeof req.body.penDistributions === 'string') {
+      try {
+        req.body.penDistributions = JSON.parse(req.body.penDistributions)
+      } catch (e) {
+        console.error("Error parsing penDistributions:", e)
+      }
+    }
+
+    if (req.body.type === 'Livestock') {
+      const distributions = req.body.penDistributions || []
+      const totalUnits = Number(req.body.units) || 0
+      const distributedUnits = distributions.reduce((sum: number, d: any) => sum + Number(d.units), 0)
+      if (distributedUnits > totalUnits) {
+        return res.status(400).json({ 
+          message: `Total distributed units (${distributedUnits}) exceeds product quantity (${totalUnits})` 
+        })
+      }
+    }
 
     await Product.create(req.body)
     const result = await queryData<IProduct>(Product, req)
@@ -43,12 +62,34 @@ export const getAProduct = async (
   }
 }
 
-export const updateProduct = async (req: Request, res: Response) => {
+export const updateProduct = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
   try {
     const uploadedFiles = await uploadFilesToS3(req)
     uploadedFiles.forEach((file) => {
       req.body[file.fieldName] = file.s3Url
     })
+
+    if (typeof req.body.penDistributions === 'string') {
+      try {
+        req.body.penDistributions = JSON.parse(req.body.penDistributions)
+      } catch (e) {
+        console.error("Error parsing penDistributions:", e)
+      }
+    }
+
+    if (req.body.type === 'Livestock') {
+      const distributions = req.body.penDistributions || []
+      const totalUnits = Number(req.body.units) || 0
+      const distributedUnits = distributions.reduce((sum: number, d: any) => sum + Number(d.units), 0)
+      if (distributedUnits > totalUnits) {
+        return res.status(400).json({ 
+          message: `Total distributed units (${distributedUnits}) exceeds product quantity (${totalUnits})` 
+        })
+      }
+    }
 
     const product = await Product.findByIdAndUpdate(req.params.id, req.body, {
       new: true,

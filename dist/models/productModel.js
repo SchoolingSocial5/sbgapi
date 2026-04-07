@@ -55,6 +55,8 @@ const ProductSchema = new mongoose_1.Schema({
     type: { type: String, enum: ['Feed', 'Medicine', 'Water', 'Livestock', 'General'], default: 'General' },
     isProducing: { type: Boolean, default: false },
     pId: { type: String },
+    dateOfBirth: { type: Date },
+    penDistributions: { type: [Object], default: [] },
     createdAt: { type: Date, default: Date.now },
 }, {
     timestamps: true,

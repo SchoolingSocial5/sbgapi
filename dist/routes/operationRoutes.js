@@ -9,6 +9,7 @@ const operationController_1 = require("../controllers/operationController");
 const upload = (0, multer_1.default)();
 const router = express_1.default.Router();
 router.route('/search').get(operationController_1.searchOperations);
-router.route('/:id').get(operationController_1.getOperation).patch(upload.any(), operationController_1.updateOperation);
+router.route('/performance-summary').get(operationController_1.getPerformanceSummary);
+router.route('/:id').get(operationController_1.getOperation).patch(upload.any(), operationController_1.updateOperation).delete(operationController_1.deleteOperation);
 router.route('/').get(operationController_1.getOperations).post(upload.any(), operationController_1.createOperation);
 exports.default = router;

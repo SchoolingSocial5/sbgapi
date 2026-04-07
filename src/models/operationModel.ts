@@ -1,4 +1,4 @@
-import mongoose, { Schema } from 'mongoose'
+import mongoose, { Schema, Document } from 'mongoose'
 
 export interface IOperation extends Document {
     _id: string
@@ -19,6 +19,7 @@ export interface IOperation extends Document {
     unitPerPurchase: number
     staffName: string
     userId: string
+    createdAt: Date
 }
 
 const OperationSchema: Schema = new Schema(
