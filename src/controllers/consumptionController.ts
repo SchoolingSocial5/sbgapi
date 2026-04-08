@@ -16,60 +16,113 @@ export const createConsumption = async (
       req.body[file.fieldName] = file.s3Url
     })
 
-    const feedId = req.body.feedId
-    const consumptionAmount = Number(req.body.consumption || 1)
-    const pro = await Product.findById(feedId)
+    const data = Array.isArray(req.body) ? req.body : [req.body]
 
-    if (!pro) {
-      return res.status(404).json({ message: 'Product not found' })
-    }
+    for (const item of data) {
+      const feedId = item.feedId
+      const consumptionAmount = Number(item.consumption || 0)
+      const pro = await Product.findById(feedId)
 
-    // 1) Stock Check: Prevent negative stock
-    const productName = req.body.feed || pro.name
-    if (!productName.toLowerCase().includes("water")) {
-      if (pro.units < consumptionAmount) {
-        return res.status(400).json({ 
-          message: `Insufficient stock for ${pro.name}. Current stock: ${pro.units}, Required: ${consumptionAmount}` 
+      if (!pro) {
+        // Skip or handle error? For bulk, skip and continue or fail all? 
+        // Following operationController pattern: we assume validation happened on frontend.
+        continue;
+      }
+
+      // 1) Stock Check: Prevent negative stock
+      const productName = item.feed || pro.name
+      if (!productName.toLowerCase().includes("water")) {
+        if (pro.units < consumptionAmount) {
+          return res.status(400).json({ 
+            message: `Insufficient stock for ${pro.name}. Current stock: ${pro.units}, Required: ${consumptionAmount}` 
+          })
+        }
+
+        await Product.findByIdAndUpdate(feedId, {
+          $inc: { units: -1 * consumptionAmount },
         })
       }
 
-      await Product.findByIdAndUpdate(feedId, {
-        $inc: { units: -1 * consumptionAmount },
-      })
+      // 2) Empty Bag Logic with Purchase Unit Sync
+      if (pro.type === 'Feed') {
+        const emptyBag = await Product.findOne({ pId: pro._id })
+        if (emptyBag) {
+          await Product.findByIdAndUpdate(emptyBag._id, {
+            $inc: { units: consumptionAmount },
+            picture: pro.picture,
+            purchaseUnit: pro.purchaseUnit, 
+          })
+        } else {
+          await Product.create({
+            name: `Empty Bag of ${pro.name}`,
+            pId: pro._id,
+            units: consumptionAmount,
+            unitPerPurchase: 1,
+            type: 'General',
+            isBuyable: true,
+            picture: pro.picture,
+            purchaseUnit: pro.purchaseUnit, 
+          })
+        }
+      }
+      
+      if (!item._id) delete item._id
+      item.amount = Number(pro.costPrice) * Number(item.consumption)
+      item.unitPrice = Number(pro.costPrice)
+      
+      const newConsumption = await Consumption.create(item)
+      io.emit("consumption", { consumption: newConsumption })
     }
 
-    // 2) Empty Bag Logic with Purchase Unit Sync
-    if (pro.type === 'Feed') {
-      const emptyBag = await Product.findOne({ pId: pro._id })
-      if (emptyBag) {
-        await Product.findByIdAndUpdate(emptyBag._id, {
-          $inc: { units: consumptionAmount },
-          picture: pro.picture,
-          purchaseUnit: pro.purchaseUnit, // Sync purchase unit
-        })
-      } else {
-        await Product.create({
-          name: `Empty Bag of ${pro.name}`,
-          pId: pro._id,
-          units: consumptionAmount,
-          unitPerPurchase: 1,
-          type: 'General',
-          isBuyable: true,
-          picture: pro.picture,
-          purchaseUnit: pro.purchaseUnit, // Copy purchase unit from source
-        })
-      }
-    }
-    req.body.amount = Number(pro.costPrice) * Number(req.body.consumption)
-    req.body.unitPrice = Number(pro.costPrice)
-    const consumption = await Consumption.create(req.body)
     const result = await queryData<IConsumption>(Consumption, req)
-    io.emit("consumption", { consumption })
     res.status(200).json({
-      message: 'Consumption was created successfully',
+      message: data.length > 1 ? `${data.length} consumptions were created successfully` : 'Consumption was created successfully',
       result,
     })
   } catch (error: any) {
+    handleError(res, undefined, undefined, error)
+  }
+}
+
+export const deleteConsumption = async (req: Request, res: Response) => {
+  try {
+    const item = await Consumption.findById(req.params.id)
+    if (!item) {
+      return res.status(404).json({ message: 'Consumption not found' })
+    }
+
+    const feedId = item.feedId
+    const consumptionAmount = Number(item.consumption || 0)
+    const pro = await Product.findById(feedId)
+
+    if (pro) {
+      const productName = item.feed || pro.name
+      if (!productName.toLowerCase().includes("water")) {
+        // Reverse stock deduction
+        await Product.findByIdAndUpdate(feedId, {
+          $inc: { units: consumptionAmount },
+        })
+      }
+
+      // Reverse Empty Bag Logic
+      if (pro.type === 'Feed') {
+        const emptyBag = await Product.findOne({ pId: pro._id })
+        if (emptyBag) {
+          await Product.findByIdAndUpdate(emptyBag._id, {
+            $inc: { units: -1 * consumptionAmount },
+          })
+        }
+      }
+    }
+
+    await Consumption.findByIdAndDelete(req.params.id)
+    const result = await queryData<IConsumption>(Consumption, req)
+
+    res.status(200).json({
+      message: 'The consumption is deleted successfully',
+      result,
+    })
+  } catch (error) {
     handleError(res, undefined, undefined, error)
   }
 }
@@ -131,4 +184,4 @@ export const getConsumptions = async (req: Request, res: Response) => {
 
 export const searchConsumptions = (req: Request, res: Response) => {
   return search(Consumption, req, res)
-}
+}

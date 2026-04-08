@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.searchConsumptions = exports.getConsumptions = exports.updateConsumption = exports.getConsumption = exports.createConsumption = void 0;
+exports.searchConsumptions = exports.getConsumptions = exports.updateConsumption = exports.getConsumption = exports.deleteConsumption = exports.createConsumption = void 0;
 const query_1 = require("../utils/query");
 const fileUpload_1 = require("../utils/fileUpload");
 const errorHandler_1 = require("../utils/errorHandler");
@@ -22,54 +22,61 @@ const createConsumption = (req, res) => __awaiter(void 0, void 0, void 0, functi
         uploadedFiles.forEach((file) => {
             req.body[file.fieldName] = file.s3Url;
         });
-        const feedId = req.body.feedId;
-        const consumptionAmount = Number(req.body.consumption || 1);
-        const pro = yield productModel_1.Product.findById(feedId);
-        if (!pro) {
-            return res.status(404).json({ message: 'Product not found' });
-        }
-        // 1) Stock Check: Prevent negative stock
-        const productName = req.body.feed || pro.name;
-        if (!productName.toLowerCase().includes("water")) {
-            if (pro.units < consumptionAmount) {
-                return res.status(400).json({
-                    message: `Insufficient stock for ${pro.name}. Current stock: ${pro.units}, Required: ${consumptionAmount}`
+        const data = Array.isArray(req.body) ? req.body : [req.body];
+        for (const item of data) {
+            const feedId = item.feedId;
+            const consumptionAmount = Number(item.consumption || 0);
+            const pro = yield productModel_1.Product.findById(feedId);
+            if (!pro) {
+                // Skip or handle error? For bulk, skip and continue or fail all? 
+                // Following operationController pattern: we assume validation happened on frontend.
+                continue;
+            }
+            // 1) Stock Check: Prevent negative stock
+            const productName = item.feed || pro.name;
+            if (!productName.toLowerCase().includes("water")) {
+                if (pro.units < consumptionAmount) {
+                    return res.status(400).json({
+                        message: `Insufficient stock for ${pro.name}. Current stock: ${pro.units}, Required: ${consumptionAmount}`
+                    });
+                }
+                yield productModel_1.Product.findByIdAndUpdate(feedId, {
+                    $inc: { units: -1 * consumptionAmount },
                 });
             }
-            yield productModel_1.Product.findByIdAndUpdate(feedId, {
-                $inc: { units: -1 * consumptionAmount },
-            });
-        }
-        // 2) Empty Bag Logic with Purchase Unit Sync
-        if (pro.type === 'Feed') {
-            const emptyBag = yield productModel_1.Product.findOne({ pId: pro._id });
-            if (emptyBag) {
-                yield productModel_1.Product.findByIdAndUpdate(emptyBag._id, {
-                    $inc: { units: consumptionAmount },
-                    picture: pro.picture,
-                    purchaseUnit: pro.purchaseUnit, // Sync purchase unit
-                });
+            // 2) Empty Bag Logic with Purchase Unit Sync
+            if (pro.type === 'Feed') {
+                const emptyBag = yield productModel_1.Product.findOne({ pId: pro._id });
+                if (emptyBag) {
+                    yield productModel_1.Product.findByIdAndUpdate(emptyBag._id, {
+                        $inc: { units: consumptionAmount },
+                        picture: pro.picture,
+                        purchaseUnit: pro.purchaseUnit,
+                    });
+                }
+                else {
+                    yield productModel_1.Product.create({
+                        name: `Empty Bag of ${pro.name}`,
+                        pId: pro._id,
+                        units: consumptionAmount,
+                        unitPerPurchase: 1,
+                        type: 'General',
+                        isBuyable: true,
+                        picture: pro.picture,
+                        purchaseUnit: pro.purchaseUnit,
+                    });
+                }
             }
-            else {
-                yield productModel_1.Product.create({
-                    name: `Empty Bag of ${pro.name}`,
-                    pId: pro._id,
-                    units: consumptionAmount,
-                    unitPerPurchase: 1,
-                    type: 'General',
-                    isBuyable: true,
-                    picture: pro.picture,
-                    purchaseUnit: pro.purchaseUnit, // Copy purchase unit from source
-                });
-            }
+            if (!item._id)
+                delete item._id;
+            item.amount = Number(pro.costPrice) * Number(item.consumption);
+            item.unitPrice = Number(pro.costPrice);
+            const newConsumption = yield consumptionModel_1.Consumption.create(item);
+            app_1.io.emit("consumption", { consumption: newConsumption });
         }
-        req.body.amount = Number(pro.costPrice) * Number(req.body.consumption);
-        req.body.unitPrice = Number(pro.costPrice);
-        const consumption = yield consumptionModel_1.Consumption.create(req.body);
         const result = yield (0, query_1.queryData)(consumptionModel_1.Consumption, req);
-        app_1.io.emit("consumption", { consumption });
         res.status(200).json({
-            message: 'Consumption was created successfully',
+            message: data.length > 1 ? `${data.length} consumptions were created successfully` : 'Consumption was created successfully',
             result,
         });
     }
@@ -78,6 +85,45 @@ const createConsumption = (req, res) => __awaiter(void 0, void 0, void 0, functi
     }
 });
 exports.createConsumption = createConsumption;
+const deleteConsumption = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const item = yield consumptionModel_1.Consumption.findById(req.params.id);
+        if (!item) {
+            return res.status(404).json({ message: 'Consumption not found' });
+        }
+        const feedId = item.feedId;
+        const consumptionAmount = Number(item.consumption || 0);
+        const pro = yield productModel_1.Product.findById(feedId);
+        if (pro) {
+            const productName = item.feed || pro.name;
+            if (!productName.toLowerCase().includes("water")) {
+                // Reverse stock deduction
+                yield productModel_1.Product.findByIdAndUpdate(feedId, {
+                    $inc: { units: consumptionAmount },
+                });
+            }
+            // Reverse Empty Bag Logic
+            if (pro.type === 'Feed') {
+                const emptyBag = yield productModel_1.Product.findOne({ pId: pro._id });
+                if (emptyBag) {
+                    yield productModel_1.Product.findByIdAndUpdate(emptyBag._id, {
+                        $inc: { units: -1 * consumptionAmount },
+                    });
+                }
+            }
+        }
+        yield consumptionModel_1.Consumption.findByIdAndDelete(req.params.id);
+        const result = yield (0, query_1.queryData)(consumptionModel_1.Consumption, req);
+        res.status(200).json({
+            message: 'The consumption is deleted successfully',
+            result,
+        });
+    }
+    catch (error) {
+        (0, errorHandler_1.handleError)(res, undefined, undefined, error);
+    }
+});
+exports.deleteConsumption = deleteConsumption;
 const getConsumption = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const consumption = yield consumptionModel_1.Consumption.findById(req.params.id);

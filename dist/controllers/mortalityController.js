@@ -15,6 +15,7 @@ const fileUpload_1 = require("../utils/fileUpload");
 const errorHandler_1 = require("../utils/errorHandler");
 const mortalityModel_1 = require("../models/mortalityModel");
 const productModel_1 = require("../models/productModel");
+const operationModel_1 = require("../models/operationModel");
 const app_1 = require("../app");
 const createMortality = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -28,8 +29,9 @@ const createMortality = (req, res) => __awaiter(void 0, void 0, void 0, function
         if (!livestock) {
             return res.status(404).json({ message: 'Livestock product not found' });
         }
-        // Stock Check & Pen validation for Livestock
-        if (livestock.type === 'Livestock') {
+        // Stock Check & Pen validation for Livestock (Bypass if it's an Egg product)
+        const isEggProduct = livestock.name.toLowerCase().includes('egg');
+        if (livestock.type === 'Livestock' && !isEggProduct) {
             const staffPen = req.body.pen;
             if (!staffPen || staffPen === "No Pen Assigned") {
                 return res.status(400).json({
@@ -69,9 +71,11 @@ const createMortality = (req, res) => __awaiter(void 0, void 0, void 0, function
         }
         // Cracks Product Logic: if the product name includes 'egg', track cracked eggs
         if (livestock.name.toLowerCase().includes('egg')) {
-            const cracksProduct = yield productModel_1.Product.findOne({ pId: livestock._id });
-            if (cracksProduct) {
-                yield productModel_1.Product.findByIdAndUpdate(cracksProduct._id, {
+            const crackProduct = yield productModel_1.Product.findOne({ pId: livestock._id, name: 'Cracks' });
+            let finalProductId = "";
+            if (crackProduct) {
+                finalProductId = crackProduct._id;
+                yield productModel_1.Product.findByIdAndUpdate(crackProduct._id, {
                     $inc: { units: quantity },
                     picture: livestock.picture,
                     purchaseUnit: livestock.purchaseUnit,
@@ -79,7 +83,7 @@ const createMortality = (req, res) => __awaiter(void 0, void 0, void 0, function
                 });
             }
             else {
-                yield productModel_1.Product.create({
+                const newCrack = yield productModel_1.Product.create({
                     name: `Cracks`,
                     pId: livestock._id,
                     units: quantity,
@@ -89,7 +93,18 @@ const createMortality = (req, res) => __awaiter(void 0, void 0, void 0, function
                     picture: livestock.picture,
                     purchaseUnit: livestock.purchaseUnit,
                 });
+                finalProductId = newCrack._id;
             }
+            // Automatically create a Production record for Cracks
+            yield operationModel_1.Operation.create({
+                operation: 'Production',
+                productName: 'Cracks',
+                productId: finalProductId,
+                quantity: quantity,
+                staffName: req.body.staffName,
+                pen: req.body.pen,
+                remark: `Automated production from ${livestock.name} damage recording`
+            });
         }
         const mortality = yield mortalityModel_1.Mortality.create(req.body);
         const result = yield (0, query_1.queryData)(mortalityModel_1.Mortality, req);

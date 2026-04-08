@@ -4,6 +4,7 @@ import { uploadFilesToS3 } from '../utils/fileUpload'
 import { handleError } from '../utils/errorHandler'
 import { IMortality, Mortality } from '../models/mortalityModel'
 import { Product } from '../models/productModel'
+import { Operation } from '../models/operationModel'
 import { io } from '../app'
 
 export const createMortality = async (
@@ -24,8 +25,9 @@ export const createMortality = async (
       return res.status(404).json({ message: 'Livestock product not found' })
     }
 
-    // Stock Check & Pen validation for Livestock
-    if (livestock.type === 'Livestock') {
+    // Stock Check & Pen validation for Livestock (Bypass if it's an Egg product)
+    const isEggProduct = livestock.name.toLowerCase().includes('egg')
+    if (livestock.type === 'Livestock' && !isEggProduct) {
       const staffPen = req.body.pen
       if (!staffPen || staffPen === "No Pen Assigned") {
         return res.status(400).json({ 
@@ -70,16 +72,19 @@ export const createMortality = async (
 
     // Cracks Product Logic: if the product name includes 'egg', track cracked eggs
     if (livestock.name.toLowerCase().includes('egg')) {
-      const cracksProduct = await Product.findOne({ pId: livestock._id })
-      if (cracksProduct) {
-        await Product.findByIdAndUpdate(cracksProduct._id, {
+      const crackProduct = await Product.findOne({ pId: livestock._id, name: 'Cracks' })
+      let finalProductId = ""
+      
+      if (crackProduct) {
+        finalProductId = crackProduct._id
+        await Product.findByIdAndUpdate(crackProduct._id, {
           $inc: { units: quantity },
           picture: livestock.picture,
           purchaseUnit: livestock.purchaseUnit,
           unitPerPurchase: livestock.unitPerPurchase,
         })
       } else {
-        await Product.create({
+        const newCrack = await Product.create({
           name: `Cracks`,
           pId: livestock._id,
           units: quantity,
@@ -89,7 +94,19 @@ export const createMortality = async (
           picture: livestock.picture,
           purchaseUnit: livestock.purchaseUnit,
         })
+        finalProductId = newCrack._id
       }
+
+      // Automatically create a Production record for Cracks
+      await Operation.create({
+        operation: 'Production',
+        productName: 'Cracks',
+        productId: finalProductId,
+        quantity: quantity,
+        staffName: req.body.staffName,
+        pen: req.body.pen,
+        remark: `Automated production from ${livestock.name} damage recording`
+      })
     }
 
     const mortality = await Mortality.create(req.body)

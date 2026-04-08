@@ -9,6 +9,7 @@ export interface IConsumption extends Document {
   unitPrice: number
   birdClass: string
   feed: string
+  feedId: string
   weight: string
   remark: string
   consumptionUnit: string
