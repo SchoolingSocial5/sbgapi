@@ -69,6 +69,7 @@ export const createConsumption = async (
       if (!item._id) delete item._id
       item.amount = Number(pro.costPrice) * Number(item.consumption)
       item.unitPrice = Number(pro.costPrice)
+      if (!item.type) item.type = pro.type
       
       const newConsumption = await Consumption.create(item)
       io.emit("consumption", { consumption: newConsumption })

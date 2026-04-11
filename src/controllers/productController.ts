@@ -80,9 +80,15 @@ export const updateProduct = async (
       }
     }
 
-    if (req.body.type === 'Livestock') {
+    if (req.body.type === 'Livestock' || req.body.isSelling) {
       const distributions = req.body.penDistributions || []
-      const totalUnits = Number(req.body.units) || 0
+      let totalUnits = Number(req.body.units)
+      
+      if (isNaN(totalUnits) || totalUnits === 0) {
+        const existingProduct = await Product.findById(req.params.id)
+        totalUnits = existingProduct ? existingProduct.units : 0
+      }
+
       const distributedUnits = distributions.reduce((sum: number, d: any) => sum + Number(d.units), 0)
       if (distributedUnits > totalUnits) {
         return res.status(400).json({ 

@@ -15,6 +15,7 @@ export interface IConsumption extends Document {
   consumptionUnit: string
   pen: string
   staffName: string
+  type: string
   createdAt: Date
 }
 
@@ -33,10 +34,11 @@ const ConsumptionSchema: Schema = new Schema(
     consumptionUnit: { type: String },
     pen: { type: String },
     staffName: { type: String },
-    createdAt: { type: Date, default: Date.now },
+    type: { type: String },
+    createdAt: { type: Date },
   },
   {
-    timestamps: true,
+    timestamps: { createdAt: false, updatedAt: true },
   }
 )
 export const Consumption = mongoose.model<IConsumption>(

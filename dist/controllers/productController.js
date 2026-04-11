@@ -76,9 +76,13 @@ const updateProduct = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 console.error("Error parsing penDistributions:", e);
             }
         }
-        if (req.body.type === 'Livestock') {
+        if (req.body.type === 'Livestock' || req.body.isSelling) {
             const distributions = req.body.penDistributions || [];
-            const totalUnits = Number(req.body.units) || 0;
+            let totalUnits = Number(req.body.units);
+            if (isNaN(totalUnits) || totalUnits === 0) {
+                const existingProduct = yield productModel_1.Product.findById(req.params.id);
+                totalUnits = existingProduct ? existingProduct.units : 0;
+            }
             const distributedUnits = distributions.reduce((sum, d) => sum + Number(d.units), 0);
             if (distributedUnits > totalUnits) {
                 return res.status(400).json({

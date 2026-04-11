@@ -41,10 +41,10 @@ const OperationSchema: Schema = new Schema(
         unitPerPurchase: { type: Number, default: 1 },
         staffName: { type: String },
         userId: { type: String },
-        createdAt: { type: Date, default: Date.now },
+        createdAt: { type: Date },
     },
     {
-        timestamps: true,
+        timestamps: { createdAt: false, updatedAt: true },
     }
 )
 export const Operation = mongoose.model<IOperation>(

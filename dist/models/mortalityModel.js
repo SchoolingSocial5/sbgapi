@@ -44,8 +44,8 @@ const MortalitySchema = new mongoose_1.Schema({
     productName: { type: String },
     pen: { type: String },
     staffName: { type: String },
-    createdAt: { type: Date, default: Date.now },
+    createdAt: { type: Date },
 }, {
-    timestamps: true,
+    timestamps: { createdAt: false, updatedAt: true },
 });
 exports.Mortality = mongoose_1.default.model('Mortality', MortalitySchema);

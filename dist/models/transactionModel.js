@@ -65,8 +65,8 @@ const TransactionSchema = new mongoose_1.Schema({
     cartProducts: { type: Array },
     startedAt: { type: Date },
     endedAt: { type: Date },
-    createdAt: { type: Date, default: Date.now },
+    createdAt: { type: Date },
 }, {
-    timestamps: true,
+    timestamps: { createdAt: false, updatedAt: true },
 });
 exports.Transaction = mongoose_1.default.model('Transaction', TransactionSchema);

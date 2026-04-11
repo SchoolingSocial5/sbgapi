@@ -23,10 +23,10 @@ const MortalitySchema: Schema = new Schema(
     productName: { type: String },
     pen: { type: String },
     staffName: { type: String },
-    createdAt: { type: Date, default: Date.now },
+    createdAt: { type: Date },
   },
   {
-    timestamps: true,
+    timestamps: { createdAt: false, updatedAt: true },
   }
 )
 

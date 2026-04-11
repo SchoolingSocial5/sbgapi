@@ -55,10 +55,10 @@ const TransactionSchema: Schema = new Schema(
     cartProducts: { type: Array },
     startedAt: { type: Date },
     endedAt: { type: Date },
-    createdAt: { type: Date, default: Date.now },
+    createdAt: { type: Date },
   },
   {
-    timestamps: true,
+    timestamps: { createdAt: false, updatedAt: true },
   }
 )
 export const Transaction = mongoose.model<ITransaction>(

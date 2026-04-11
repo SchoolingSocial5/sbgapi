@@ -49,8 +49,9 @@ const ConsumptionSchema = new mongoose_1.Schema({
     consumptionUnit: { type: String },
     pen: { type: String },
     staffName: { type: String },
-    createdAt: { type: Date, default: Date.now },
+    type: { type: String },
+    createdAt: { type: Date },
 }, {
-    timestamps: true,
+    timestamps: { createdAt: false, updatedAt: true },
 });
 exports.Consumption = mongoose_1.default.model('Consumption', ConsumptionSchema);

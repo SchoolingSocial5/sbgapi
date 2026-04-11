@@ -71,6 +71,8 @@ const createConsumption = (req, res) => __awaiter(void 0, void 0, void 0, functi
                 delete item._id;
             item.amount = Number(pro.costPrice) * Number(item.consumption);
             item.unitPrice = Number(pro.costPrice);
+            if (!item.type)
+                item.type = pro.type;
             const newConsumption = yield consumptionModel_1.Consumption.create(item);
             app_1.io.emit("consumption", { consumption: newConsumption });
         }
