@@ -73,11 +73,20 @@ export const createTrasanction = async (req: Request, res: Response) => {
     uploadedFiles.forEach((file) => {
       req.body[file.fieldName] = file.s3Url
     })
-    const cartProducts = JSON.parse(req.body.cartProducts)
-    req.body.cartProducts = JSON.parse(req.body.cartProducts)
-    req.body.status = JSON.parse(req.body.status)
-    req.body.isProfit = JSON.parse(req.body.isProfit)
-    req.body.partPayment = JSON.parse(req.body.partPayment)
+    const safeParse = (val: any, fallback: any) => {
+      try {
+        if (typeof val === 'string' && val !== 'undefined') return JSON.parse(val)
+        return (val === 'undefined' || val === undefined) ? fallback : val
+      } catch (e) {
+        return fallback
+      }
+    }
+
+    const cartProducts = safeParse(req.body.cartProducts, [])
+    req.body.cartProducts = cartProducts
+    req.body.status = safeParse(req.body.status, true)
+    req.body.isProfit = safeParse(req.body.isProfit, true)
+    req.body.partPayment = safeParse(req.body.partPayment, 0)
 
     if (!Array.isArray(cartProducts) || cartProducts.length === 0) {
       return res.status(400).json({ message: 'Cart is empty' })
