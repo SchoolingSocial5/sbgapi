@@ -108,6 +108,12 @@ const createOperation = (req, res) => __awaiter(void 0, void 0, void 0, function
         });
         const data = Array.isArray(req.body) ? req.body : [req.body];
         for (const item of data) {
+            // Automatically set type from product type if not provided
+            if (item.productId && !item.type) {
+                const pro = yield productModel_1.Product.findById(item.productId);
+                if (pro)
+                    item.type = pro.type;
+            }
             yield operationModel_1.Operation.create(item);
             // If a product is linked, sum production units and add to stock
             if (item.productId) {

@@ -53,6 +53,7 @@ const OperationSchema = new mongoose_1.Schema({
     unitPerPurchase: { type: Number, default: 1 },
     staffName: { type: String },
     userId: { type: String },
+    type: { type: String },
     createdAt: { type: Date },
 }, {
     timestamps: { createdAt: false, updatedAt: true },

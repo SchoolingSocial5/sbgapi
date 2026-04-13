@@ -114,6 +114,11 @@ export const createOperation = async (
         const data = Array.isArray(req.body) ? req.body : [req.body]
 
         for (const item of data) {
+            // Automatically set type from product type if not provided
+            if (item.productId && !item.type) {
+                const pro = await Product.findById(item.productId)
+                if (pro) item.type = pro.type
+            }
             await Operation.create(item)
 
             // If a product is linked, sum production units and add to stock
