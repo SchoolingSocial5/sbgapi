@@ -4,6 +4,7 @@ import { queryData, search } from '../utils/query'
 import { uploadFilesToS3 } from '../utils/fileUpload'
 import { handleError } from '../utils/errorHandler'
 import { io } from '../app'
+import { parseJsonFields } from '../utils/body'
 
 export const createProduct = async (
   req: Request,
@@ -14,6 +15,7 @@ export const createProduct = async (
     uploadedFiles.forEach((file) => {
       req.body[file.fieldName] = file.s3Url
     })
+    parseJsonFields(req, ['penDistributions'])
 
     if (typeof req.body.penDistributions === 'string') {
       try {
@@ -71,6 +73,7 @@ export const updateProduct = async (
     uploadedFiles.forEach((file) => {
       req.body[file.fieldName] = file.s3Url
     })
+    parseJsonFields(req, ['penDistributions'])
 
     if (typeof req.body.penDistributions === 'string') {
       try {
