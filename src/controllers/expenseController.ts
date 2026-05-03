@@ -101,3 +101,15 @@ export const getLatestExpenses = async (
     });
   }
 };
+
+export const deleteExpenses = async (req: Request, res: Response) => {
+  try {
+    const { ids } = req.body
+    await Expense.deleteMany({ _id: { $in: ids } })
+    const result = await queryData<IExpense>(Expense, req)
+    io.emit('expenses', { deletedIds: ids })
+    res.status(200).json(result)
+  } catch (error) {
+    handleError(res, undefined, undefined, error)
+  }
+}

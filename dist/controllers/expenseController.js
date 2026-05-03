@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getLatestExpenses = exports.getExpenses = exports.updateExpense = exports.getExpense = exports.createExpense = void 0;
+exports.deleteExpenses = exports.getLatestExpenses = exports.getExpenses = exports.updateExpense = exports.getExpense = exports.createExpense = void 0;
 const query_1 = require("../utils/query");
 const fileUpload_1 = require("../utils/fileUpload");
 const errorHandler_1 = require("../utils/errorHandler");
@@ -102,3 +102,16 @@ const getLatestExpenses = (req, res) => __awaiter(void 0, void 0, void 0, functi
     }
 });
 exports.getLatestExpenses = getLatestExpenses;
+const deleteExpenses = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { ids } = req.body;
+        yield expenseModel_1.Expense.deleteMany({ _id: { $in: ids } });
+        const result = yield (0, query_1.queryData)(expenseModel_1.Expense, req);
+        app_1.io.emit('expenses', { deletedIds: ids });
+        res.status(200).json(result);
+    }
+    catch (error) {
+        (0, errorHandler_1.handleError)(res, undefined, undefined, error);
+    }
+});
+exports.deleteExpenses = deleteExpenses;

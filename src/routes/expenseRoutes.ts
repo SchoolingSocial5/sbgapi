@@ -7,12 +7,13 @@ import {
   getExpenses,
   getLatestExpenses,
   updateExpense,
+  deleteExpenses,
 } from '../controllers/expenseController'
 const upload = multer()
 
 const router = express.Router()
 router.route('/latest').get(getLatestExpenses)
 router.route('/:id').get(getExpense).patch(upload.any(), updateExpense)
-router.route('/').get(getExpenses).post(upload.any(), createExpense)
+router.route('/').get(getExpenses).post(upload.any(), createExpense).patch(deleteExpenses)
 
 export default router
