@@ -15,12 +15,14 @@ const query_1 = require("../utils/query");
 const fileUpload_1 = require("../utils/fileUpload");
 const errorHandler_1 = require("../utils/errorHandler");
 const app_1 = require("../app");
+const body_1 = require("../utils/body");
 const createProduct = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const uploadedFiles = yield (0, fileUpload_1.uploadFilesToS3)(req);
         uploadedFiles.forEach((file) => {
             req.body[file.fieldName] = file.s3Url;
         });
+        (0, body_1.parseJsonFields)(req, ['penDistributions']);
         if (typeof req.body.penDistributions === 'string') {
             try {
                 req.body.penDistributions = JSON.parse(req.body.penDistributions);
@@ -68,6 +70,7 @@ const updateProduct = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         uploadedFiles.forEach((file) => {
             req.body[file.fieldName] = file.s3Url;
         });
+        (0, body_1.parseJsonFields)(req, ['penDistributions']);
         if (typeof req.body.penDistributions === 'string') {
             try {
                 req.body.penDistributions = JSON.parse(req.body.penDistributions);
