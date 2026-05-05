@@ -200,12 +200,61 @@ export const updateOperation = async (req: Request, res: Response) => {
             req.body[file.fieldName] = file.s3Url
         })
 
-        const service = await Operation.findByIdAndUpdate(req.params.id, req.body, {
+        const oldOperation = await Operation.findById(req.params.id)
+        if (!oldOperation) {
+            return res.status(404).json({ message: 'Operation not found' })
+        }
+
+        // Sync inventory if production units changed
+        if (oldOperation.productId && (req.body.productionData || req.body.quantity !== undefined)) {
+            const oldProductionData: { columnId: string; name: string; units: number }[] = oldOperation.productionData || []
+            const oldTotalUnits = oldProductionData.reduce((sum, entry) => sum + Number(entry.units || 0), 0) + Number(oldOperation.quantity || 0)
+            
+            const newProductionData: { columnId: string; name: string; units: number }[] = req.body.productionData || oldOperation.productionData || []
+            const newTotalUnits = newProductionData.reduce((sum, entry) => sum + Number(entry.units || 0), 0) + Number(req.body.quantity !== undefined ? req.body.quantity : oldOperation.quantity || 0)
+            
+            const diff = newTotalUnits - oldTotalUnits
+            
+            if (diff !== 0) {
+                const pro = await Product.findById(oldOperation.productId)
+                if (pro) {
+                    // Check if decreasing stock (diff < 0), ensure no negative result
+                    if (diff < 0 && pro.units < Math.abs(diff)) {
+                        return res.status(400).json({ 
+                            message: `Insufficient stock to update operation for ${pro.name}. Available: ${pro.units}` 
+                        })
+                    }
+
+                    await Product.findByIdAndUpdate(oldOperation.productId, {
+                        $inc: { units: diff },
+                    })
+
+                    // Specialized Manure Bag Handling
+                    if (oldOperation.productName?.toLowerCase().includes('manure') && oldOperation.unitName?.toLowerCase().includes('bag')) {
+                        const bagName = `${oldOperation.unitName} of ${oldOperation.productName}`
+                        const emptyBag = await Product.findOne({ name: bagName })
+                        if (emptyBag) {
+                            const oldQty = Number(oldOperation.quantity || 0)
+                            const newQty = Number(req.body.quantity !== undefined ? req.body.quantity : oldOperation.quantity || 0)
+                            const qtyDiff = newQty - oldQty
+                            
+                            if (qtyDiff !== 0) {
+                                await Product.findByIdAndUpdate(emptyBag._id, {
+                                    $inc: { units: qtyDiff },
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        const operation = await Operation.findByIdAndUpdate(req.params.id, req.body, {
             new: true,
             runValidators: true,
         })
-        if (!service) {
-            return res.status(404).json({ message: 'service not found' })
+        if (!operation) {
+            return res.status(404).json({ message: 'Operation not found' })
         }
         const result = await queryData<IOperation>(Operation, req)
 

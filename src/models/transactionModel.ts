@@ -20,6 +20,8 @@ export interface ITransaction extends Document {
   totalAmount: number
   adjustedTotal: number
   picture: string
+  isProfit: boolean
+  product: any
   cartProducts: IProduct[]
   createdAt: Date
 }

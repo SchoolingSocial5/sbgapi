@@ -35,14 +35,12 @@ const createConsumption = (req, res) => __awaiter(void 0, void 0, void 0, functi
             // 1) Stock Check: Prevent negative stock
             const productName = item.feed || pro.name;
             if (!productName.toLowerCase().includes("water")) {
-                if (pro.units < consumptionAmount) {
+                const updateResult = yield productModel_1.Product.updateOne({ _id: feedId, units: { $gte: consumptionAmount } }, { $inc: { units: -1 * consumptionAmount } });
+                if (updateResult.modifiedCount === 0) {
                     return res.status(400).json({
                         message: `Insufficient stock for ${pro.name}. Current stock: ${pro.units}, Required: ${consumptionAmount}`
                     });
                 }
-                yield productModel_1.Product.findByIdAndUpdate(feedId, {
-                    $inc: { units: -1 * consumptionAmount },
-                });
             }
             // 2) Empty Bag Logic with Purchase Unit Sync
             if (pro.type === 'Feed') {
@@ -142,10 +140,42 @@ const getConsumption = (req, res) => __awaiter(void 0, void 0, void 0, function*
 exports.getConsumption = getConsumption;
 const updateConsumption = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const uploadedFiles = yield (0, fileUpload_1.uploadFilesToS3)(req);
-        uploadedFiles.forEach((file) => {
-            req.body[file.fieldName] = file.s3Url;
-        });
+        const oldConsumption = yield consumptionModel_1.Consumption.findById(req.params.id);
+        if (!oldConsumption) {
+            return res.status(404).json({ message: 'Consumption not found' });
+        }
+        // Sync inventory if consumption amount changed
+        if (req.body.consumption !== undefined) {
+            const feedId = oldConsumption.feedId;
+            const oldAmount = Number(oldConsumption.consumption || 0);
+            const newAmount = Number(req.body.consumption || 0);
+            const diff = oldAmount - newAmount;
+            if (diff !== 0) {
+                const pro = yield productModel_1.Product.findById(feedId);
+                if (pro) {
+                    const productName = oldConsumption.feed || pro.name;
+                    if (!productName.toLowerCase().includes("water")) {
+                        // If decreasing stock (new > old, diff < 0), check availability
+                        if (diff < 0) {
+                            const amountToDeduct = Math.abs(diff);
+                            if (pro.units < amountToDeduct) {
+                                return res.status(400).json({
+                                    message: `Insufficient stock for ${pro.name}. Available: ${pro.units}`
+                                });
+                            }
+                        }
+                        yield productModel_1.Product.updateOne(Object.assign({ _id: feedId }, (diff < 0 ? { units: { $gte: Math.abs(diff) } } : {})), { $inc: { units: diff } });
+                    }
+                    // Sync Empty Bag
+                    if (pro.type === 'Feed') {
+                        const emptyBag = yield productModel_1.Product.findOne({ pId: pro._id });
+                        if (emptyBag) {
+                            yield productModel_1.Product.updateOne(Object.assign({ _id: emptyBag._id }, (diff > 0 ? { units: { $gte: diff } } : {})), { $inc: { units: -diff } });
+                        }
+                    }
+                }
+            }
+        }
         const consumption = yield consumptionModel_1.Consumption.findByIdAndUpdate(req.params.id, req.body, {
             new: true,
             runValidators: true,

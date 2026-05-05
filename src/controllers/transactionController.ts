@@ -141,14 +141,22 @@ export const createTrasanction = async (req: Request, res: Response) => {
 
     const bulkOps = cartProducts.map((cartItem) => ({
       updateOne: {
-        filter: { _id: cartItem._id },
+        filter: { 
+          _id: cartItem._id,
+          units: { $gte: cartItem.cartUnits * (cartItem.unitPerPurchase || 1) }
+        },
         update: {
           $inc: { units: -cartItem.cartUnits * (cartItem.unitPerPurchase || 1) },
         },
       },
     }))
 
-    await Product.bulkWrite(bulkOps)
+    const bulkResult = await Product.bulkWrite(bulkOps)
+    if (bulkResult.modifiedCount !== cartProducts.length) {
+      return res.status(400).json({
+        message: 'Some items could not be processed due to insufficient stock. Please refresh and try again.',
+      })
+    }
     const sales = await Transaction.countDocuments()
     req.body.invoiceNumber = `SBG-${req.body.invoiceNumber}${sales + 1}`
 
@@ -272,8 +280,20 @@ export const updateTransaction = async (req: Request, res: Response) => {
         if (oldItem) {
           const diff = oldItem.cartUnits - newItem.cartUnits
           if (diff !== 0) {
+            const amountChange = diff * (newItem.unitPerPurchase || 1)
+            
+            // If we are increasing quantity (diff is negative), check stock
+            if (amountChange < 0) {
+              const product = await Product.findById(newItem._id)
+              if (!product || product.units < Math.abs(amountChange)) {
+                return res.status(400).json({ 
+                  message: `Insufficient stock for ${newItem.name}. Available: ${product?.units || 0}` 
+                })
+              }
+            }
+
             await Product.findByIdAndUpdate(newItem._id, {
-              $inc: { units: diff * (newItem.unitPerPurchase || 1) },
+              $inc: { units: amountChange },
             })
           }
         }

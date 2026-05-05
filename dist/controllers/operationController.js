@@ -184,17 +184,59 @@ const getOperation = (req, res) => __awaiter(void 0, void 0, void 0, function* (
 });
 exports.getOperation = getOperation;
 const updateOperation = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
     try {
         const uploadedFiles = yield (0, fileUpload_1.uploadFilesToS3)(req);
         uploadedFiles.forEach((file) => {
             req.body[file.fieldName] = file.s3Url;
         });
-        const service = yield operationModel_1.Operation.findByIdAndUpdate(req.params.id, req.body, {
+        const oldOperation = yield operationModel_1.Operation.findById(req.params.id);
+        if (!oldOperation) {
+            return res.status(404).json({ message: 'Operation not found' });
+        }
+        // Sync inventory if production units changed
+        if (oldOperation.productId && (req.body.productionData || req.body.quantity !== undefined)) {
+            const oldProductionData = oldOperation.productionData || [];
+            const oldTotalUnits = oldProductionData.reduce((sum, entry) => sum + Number(entry.units || 0), 0) + Number(oldOperation.quantity || 0);
+            const newProductionData = req.body.productionData || oldOperation.productionData || [];
+            const newTotalUnits = newProductionData.reduce((sum, entry) => sum + Number(entry.units || 0), 0) + Number(req.body.quantity !== undefined ? req.body.quantity : oldOperation.quantity || 0);
+            const diff = newTotalUnits - oldTotalUnits;
+            if (diff !== 0) {
+                const pro = yield productModel_1.Product.findById(oldOperation.productId);
+                if (pro) {
+                    // Check if decreasing stock (diff < 0), ensure no negative result
+                    if (diff < 0 && pro.units < Math.abs(diff)) {
+                        return res.status(400).json({
+                            message: `Insufficient stock to update operation for ${pro.name}. Available: ${pro.units}`
+                        });
+                    }
+                    yield productModel_1.Product.findByIdAndUpdate(oldOperation.productId, {
+                        $inc: { units: diff },
+                    });
+                    // Specialized Manure Bag Handling
+                    if (((_a = oldOperation.productName) === null || _a === void 0 ? void 0 : _a.toLowerCase().includes('manure')) && ((_b = oldOperation.unitName) === null || _b === void 0 ? void 0 : _b.toLowerCase().includes('bag'))) {
+                        const bagName = `${oldOperation.unitName} of ${oldOperation.productName}`;
+                        const emptyBag = yield productModel_1.Product.findOne({ name: bagName });
+                        if (emptyBag) {
+                            const oldQty = Number(oldOperation.quantity || 0);
+                            const newQty = Number(req.body.quantity !== undefined ? req.body.quantity : oldOperation.quantity || 0);
+                            const qtyDiff = newQty - oldQty;
+                            if (qtyDiff !== 0) {
+                                yield productModel_1.Product.findByIdAndUpdate(emptyBag._id, {
+                                    $inc: { units: qtyDiff },
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        const operation = yield operationModel_1.Operation.findByIdAndUpdate(req.params.id, req.body, {
             new: true,
             runValidators: true,
         });
-        if (!service) {
-            return res.status(404).json({ message: 'service not found' });
+        if (!operation) {
+            return res.status(404).json({ message: 'Operation not found' });
         }
         const result = yield (0, query_1.queryData)(operationModel_1.Operation, req);
         res.status(200).json({

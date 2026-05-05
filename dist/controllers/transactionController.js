@@ -132,13 +132,21 @@ const createTrasanction = (req, res) => __awaiter(void 0, void 0, void 0, functi
         }
         const bulkOps = cartProducts.map((cartItem) => ({
             updateOne: {
-                filter: { _id: cartItem._id },
+                filter: {
+                    _id: cartItem._id,
+                    units: { $gte: cartItem.cartUnits * (cartItem.unitPerPurchase || 1) }
+                },
                 update: {
                     $inc: { units: -cartItem.cartUnits * (cartItem.unitPerPurchase || 1) },
                 },
             },
         }));
-        yield productModel_1.Product.bulkWrite(bulkOps);
+        const bulkResult = yield productModel_1.Product.bulkWrite(bulkOps);
+        if (bulkResult.modifiedCount !== cartProducts.length) {
+            return res.status(400).json({
+                message: 'Some items could not be processed due to insufficient stock. Please refresh and try again.',
+            });
+        }
         const sales = yield transactionModel_1.Transaction.countDocuments();
         req.body.invoiceNumber = `SBG-${req.body.invoiceNumber}${sales + 1}`;
         if (!req.body.email || req.body.email.trim() === '' || req.body.email === 'undefined') {
@@ -247,8 +255,18 @@ const updateTransaction = (req, res) => __awaiter(void 0, void 0, void 0, functi
                 if (oldItem) {
                     const diff = oldItem.cartUnits - newItem.cartUnits;
                     if (diff !== 0) {
+                        const amountChange = diff * (newItem.unitPerPurchase || 1);
+                        // If we are increasing quantity (diff is negative), check stock
+                        if (amountChange < 0) {
+                            const product = yield productModel_1.Product.findById(newItem._id);
+                            if (!product || product.units < Math.abs(amountChange)) {
+                                return res.status(400).json({
+                                    message: `Insufficient stock for ${newItem.name}. Available: ${(product === null || product === void 0 ? void 0 : product.units) || 0}`
+                                });
+                            }
+                        }
                         yield productModel_1.Product.findByIdAndUpdate(newItem._id, {
-                            $inc: { units: diff * (newItem.unitPerPurchase || 1) },
+                            $inc: { units: amountChange },
                         });
                     }
                 }

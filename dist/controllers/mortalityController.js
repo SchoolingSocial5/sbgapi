@@ -46,28 +46,25 @@ const createMortality = (req, res) => __awaiter(void 0, void 0, void 0, function
                     message: `The assigned pen (${staffPen}) does not have this livestock distributed to it.`
                 });
             }
-            if (penEntry.units < quantity) {
+            const updateResult = yield productModel_1.Product.updateOne({
+                _id: productId,
+                units: { $gte: quantity },
+                "penDistributions": { $elemMatch: { penName: staffPen, units: { $gte: quantity } } }
+            }, { $inc: { units: -1 * quantity, "penDistributions.$[elem].units": -1 * quantity } }, { arrayFilters: [{ "elem.penName": staffPen }] });
+            if (updateResult.modifiedCount === 0) {
                 return res.status(400).json({
                     message: `Insufficient stock in ${staffPen} for mortality record. Pen stock: ${penEntry.units}, Mortality: ${quantity}`
                 });
             }
-            // Decrement both total stock and pen-specific stock
-            yield productModel_1.Product.findByIdAndUpdate(productId, {
-                $inc: { units: -1 * quantity, "penDistributions.$[elem].units": -1 * quantity }
-            }, {
-                arrayFilters: [{ "elem.penName": staffPen }]
-            });
         }
         else {
             // General item stock decrement
-            if (livestock.units < quantity) {
+            const updateResult = yield productModel_1.Product.updateOne({ _id: productId, units: { $gte: quantity } }, { $inc: { units: -1 * quantity } });
+            if (updateResult.modifiedCount === 0) {
                 return res.status(400).json({
                     message: `Insufficient stock. Current stock: ${livestock.units}, Mortality: ${quantity}`
                 });
             }
-            yield productModel_1.Product.findByIdAndUpdate(productId, {
-                $inc: { units: -1 * quantity },
-            });
         }
         // Cracks Product Logic: if the product name includes 'egg', track cracked eggs
         if (livestock.name.toLowerCase().includes('egg')) {
@@ -133,11 +130,43 @@ const getMortality = (req, res) => __awaiter(void 0, void 0, void 0, function* (
 });
 exports.getMortality = getMortality;
 const updateMortality = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
-        const uploadedFiles = yield (0, fileUpload_1.uploadFilesToS3)(req);
-        uploadedFiles.forEach((file) => {
-            req.body[file.fieldName] = file.s3Url;
-        });
+        const oldMortality = yield mortalityModel_1.Mortality.findById(req.params.id);
+        if (!oldMortality) {
+            return res.status(404).json({ message: 'Mortality record not found' });
+        }
+        // Sync inventory if birds count changed
+        if (req.body.birds !== undefined) {
+            const productId = oldMortality.productId;
+            const oldQuantity = Number(oldMortality.birds || 0);
+            const newQuantity = Number(req.body.birds || 0);
+            const diff = oldQuantity - newQuantity;
+            if (diff !== 0) {
+                const livestock = yield productModel_1.Product.findById(productId);
+                if (livestock) {
+                    const isEggProduct = livestock.name.toLowerCase().includes('egg');
+                    const staffPen = oldMortality.pen;
+                    if (livestock.type === 'Livestock' && !isEggProduct && staffPen) {
+                        // Decrementing (diff < 0), check stock
+                        if (diff < 0) {
+                            const penEntry = (_a = livestock.penDistributions) === null || _a === void 0 ? void 0 : _a.find(d => d.penName === staffPen);
+                            if (!penEntry || penEntry.units < Math.abs(diff)) {
+                                return res.status(400).json({ message: `Insufficient stock in ${staffPen}` });
+                            }
+                        }
+                        yield productModel_1.Product.updateOne(Object.assign({ _id: productId }, (diff < 0 ? { units: { $gte: Math.abs(diff) }, "penDistributions": { $elemMatch: { penName: staffPen, units: { $gte: Math.abs(diff) } } } } : {})), { $inc: { units: diff, "penDistributions.$[elem].units": diff } }, { arrayFilters: [{ "elem.penName": staffPen }] });
+                    }
+                    else {
+                        // General decrement
+                        if (diff < 0 && livestock.units < Math.abs(diff)) {
+                            return res.status(400).json({ message: 'Insufficient stock' });
+                        }
+                        yield productModel_1.Product.updateOne(Object.assign({ _id: productId }, (diff < 0 ? { units: { $gte: Math.abs(diff) } } : {})), { $inc: { units: diff } });
+                    }
+                }
+            }
+        }
         const mortality = yield mortalityModel_1.Mortality.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
         if (!mortality) {
             return res.status(404).json({ message: 'Mortality record not found' });

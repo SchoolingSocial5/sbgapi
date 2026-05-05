@@ -32,15 +32,16 @@ export const createConsumption = async (
       // 1) Stock Check: Prevent negative stock
       const productName = item.feed || pro.name
       if (!productName.toLowerCase().includes("water")) {
-        if (pro.units < consumptionAmount) {
+        const updateResult = await Product.updateOne(
+          { _id: feedId, units: { $gte: consumptionAmount } },
+          { $inc: { units: -1 * consumptionAmount } }
+        )
+
+        if (updateResult.modifiedCount === 0) {
           return res.status(400).json({ 
             message: `Insufficient stock for ${pro.name}. Current stock: ${pro.units}, Required: ${consumptionAmount}` 
           })
         }
-
-        await Product.findByIdAndUpdate(feedId, {
-          $inc: { units: -1 * consumptionAmount },
-        })
       }
 
       // 2) Empty Bag Logic with Purchase Unit Sync
@@ -147,10 +148,52 @@ export const getConsumption = async (
 
 export const updateConsumption = async (req: Request, res: Response) => {
   try {
-    const uploadedFiles = await uploadFilesToS3(req)
-    uploadedFiles.forEach((file) => {
-      req.body[file.fieldName] = file.s3Url
-    })
+    const oldConsumption = await Consumption.findById(req.params.id)
+    if (!oldConsumption) {
+      return res.status(404).json({ message: 'Consumption not found' })
+    }
+
+    // Sync inventory if consumption amount changed
+    if (req.body.consumption !== undefined) {
+      const feedId = oldConsumption.feedId
+      const oldAmount = Number(oldConsumption.consumption || 0)
+      const newAmount = Number(req.body.consumption || 0)
+      const diff = oldAmount - newAmount
+
+      if (diff !== 0) {
+        const pro = await Product.findById(feedId)
+        if (pro) {
+          const productName = oldConsumption.feed || pro.name
+          if (!productName.toLowerCase().includes("water")) {
+            // If decreasing stock (new > old, diff < 0), check availability
+            if (diff < 0) {
+              const amountToDeduct = Math.abs(diff)
+              if (pro.units < amountToDeduct) {
+                return res.status(400).json({ 
+                  message: `Insufficient stock for ${pro.name}. Available: ${pro.units}` 
+                })
+              }
+            }
+
+            await Product.updateOne(
+              { _id: feedId, ...(diff < 0 ? { units: { $gte: Math.abs(diff) } } : {}) },
+              { $inc: { units: diff } }
+            )
+          }
+
+          // Sync Empty Bag
+          if (pro.type === 'Feed') {
+            const emptyBag = await Product.findOne({ pId: pro._id })
+            if (emptyBag) {
+              await Product.updateOne(
+                { _id: emptyBag._id, ...(diff > 0 ? { units: { $gte: diff } } : {}) },
+                { $inc: { units: -diff } }
+              )
+            }
+          }
+        }
+      }
+    }
 
     const consumption = await Consumption.findByIdAndUpdate(
       req.params.id,
