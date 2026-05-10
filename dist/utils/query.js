@@ -266,7 +266,7 @@ const buildSortingQuery = (req) => {
     }
     return sort;
 };
-const MODELS_WITH_SUMMARY = ['Transaction', 'Stocking'];
+const MODELS_WITH_SUMMARY = ['Transaction', 'Stocking', 'Operation', 'Consumption'];
 const queryData = (model, req) => __awaiter(void 0, void 0, void 0, function* () {
     const page_size = parseInt(req.query.page_size, 10) || 10;
     const page = parseInt(req.query.page, 10) || 1;
@@ -280,33 +280,71 @@ const queryData = (model, req) => __awaiter(void 0, void 0, void 0, function* ()
         .sort(sort);
     let summary;
     if (MODELS_WITH_SUMMARY.includes(model.modelName)) {
-        const pipeline = [
-            { $match: filters },
-            {
-                $group: {
-                    _id: null,
-                    totalProfit: {
-                        $sum: {
-                            $cond: [
-                                { $eq: ['$isProfit', true] },
-                                model.modelName === 'Transaction' ? '$totalAmount' : '$amount',
-                                0,
-                            ],
+        let pipeline = [];
+        if (model.modelName === 'Transaction' || model.modelName === 'Stocking') {
+            pipeline = [
+                { $match: filters },
+                {
+                    $group: {
+                        _id: null,
+                        totalProfit: {
+                            $sum: {
+                                $cond: [
+                                    { $eq: ['$isProfit', true] },
+                                    model.modelName === 'Transaction' ? '$totalAmount' : '$amount',
+                                    0,
+                                ],
+                            },
                         },
-                    },
-                    totalLoss: {
-                        $sum: {
-                            $cond: [
-                                { $eq: ['$isProfit', false] },
-                                model.modelName === 'Transaction' ? '$totalAmount' : '$amount',
-                                0,
-                            ],
+                        totalLoss: {
+                            $sum: {
+                                $cond: [
+                                    { $eq: ['$isProfit', false] },
+                                    model.modelName === 'Transaction' ? '$totalAmount' : '$amount',
+                                    0,
+                                ],
+                            },
                         },
+                        totalTransactions: { $sum: 1 },
                     },
-                    totalTransactions: { $sum: 1 },
                 },
-            },
-        ];
+            ];
+        }
+        else if (model.modelName === 'Operation') {
+            pipeline = [
+                { $match: filters },
+                {
+                    $group: {
+                        _id: null,
+                        totalQuantity: {
+                            $sum: {
+                                $add: [
+                                    { $convert: { input: '$quantity', to: 'double', onError: 0, onNull: 0 } },
+                                    {
+                                        $reduce: {
+                                            input: { $ifNull: ['$productionData', []] },
+                                            initialValue: 0,
+                                            in: { $add: ['$$value', '$$this.units'] },
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                    },
+                },
+            ];
+        }
+        else if (model.modelName === 'Consumption') {
+            pipeline = [
+                { $match: filters },
+                {
+                    $group: {
+                        _id: null,
+                        totalQuantity: { $sum: '$consumption' },
+                    },
+                },
+            ];
+        }
         const aggResult = yield model.aggregate(pipeline);
         if (aggResult && aggResult.length > 0) {
             summary = aggResult[0];
@@ -316,6 +354,7 @@ const queryData = (model, req) => __awaiter(void 0, void 0, void 0, function* ()
                 totalProfit: 0,
                 totalLoss: 0,
                 totalTransactions: 0,
+                totalQuantity: 0,
             };
         }
     }

@@ -300,7 +300,7 @@ const buildSortingQuery = (req: Request): Record<string, any> => {
   return sort
 }
 
-const MODELS_WITH_SUMMARY = ['Transaction', 'Stocking']
+const MODELS_WITH_SUMMARY = ['Transaction', 'Stocking', 'Operation', 'Consumption']
 
 export const queryData = async <T>(
   model: Model<T>,
@@ -322,33 +322,70 @@ export const queryData = async <T>(
   let summary: Record<string, any> | undefined
 
   if (MODELS_WITH_SUMMARY.includes(model.modelName)) {
-    const pipeline = [
-      { $match: filters },
-      {
-        $group: {
-          _id: null,
-          totalProfit: {
-            $sum: {
-              $cond: [
-                { $eq: ['$isProfit', true] },
-                model.modelName === 'Transaction' ? '$totalAmount' : '$amount',
-                0,
-              ],
+    let pipeline: any[] = []
+
+    if (model.modelName === 'Transaction' || model.modelName === 'Stocking') {
+      pipeline = [
+        { $match: filters },
+        {
+          $group: {
+            _id: null,
+            totalProfit: {
+              $sum: {
+                $cond: [
+                  { $eq: ['$isProfit', true] },
+                  model.modelName === 'Transaction' ? '$totalAmount' : '$amount',
+                  0,
+                ],
+              },
             },
-          },
-          totalLoss: {
-            $sum: {
-              $cond: [
-                { $eq: ['$isProfit', false] },
-                model.modelName === 'Transaction' ? '$totalAmount' : '$amount',
-                0,
-              ],
+            totalLoss: {
+              $sum: {
+                $cond: [
+                  { $eq: ['$isProfit', false] },
+                  model.modelName === 'Transaction' ? '$totalAmount' : '$amount',
+                  0,
+                ],
+              },
             },
+            totalTransactions: { $sum: 1 },
           },
-          totalTransactions: { $sum: 1 },
         },
-      },
-    ]
+      ]
+    } else if (model.modelName === 'Operation') {
+      pipeline = [
+        { $match: filters },
+        {
+          $group: {
+            _id: null,
+            totalQuantity: {
+              $sum: {
+                $add: [
+                  { $convert: { input: '$quantity', to: 'double', onError: 0, onNull: 0 } },
+                  {
+                    $reduce: {
+                      input: { $ifNull: ['$productionData', []] },
+                      initialValue: 0,
+                      in: { $add: ['$$value', '$$this.units'] },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ]
+    } else if (model.modelName === 'Consumption') {
+      pipeline = [
+        { $match: filters },
+        {
+          $group: {
+            _id: null,
+            totalQuantity: { $sum: '$consumption' },
+          },
+        },
+      ]
+    }
 
     const aggResult = await model.aggregate(pipeline)
     if (aggResult && aggResult.length > 0) {
@@ -358,6 +395,7 @@ export const queryData = async <T>(
         totalProfit: 0,
         totalLoss: 0,
         totalTransactions: 0,
+        totalQuantity: 0,
       }
     }
   }
