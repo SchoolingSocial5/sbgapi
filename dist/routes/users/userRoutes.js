@@ -27,5 +27,7 @@ router
     .patch(upload.any(), userController_1.updateUser)
     .post(upload.any(), authController_1.updatePassword).delete(userController_1.deleteUser);
 router.route('/make-user/:id').patch(upload.any(), userController_1.MakeStaffUser);
+router.route('/mass-delete').post(userController_1.massDeleteUsers).delete(userController_1.massDeleteUsers);
+router.route('/delete/:id').delete(userController_1.deleteUser);
 router.route('/').get(userController_1.getUsers).post(upload.any(), userController_1.createUser);
 exports.default = router;

@@ -21,6 +21,7 @@ import {
   MakeStaffUser,
   deleteUser,
   suspendUsers,
+  massDeleteUsers,
 } from '../../controllers/users/userController'
 
 const router = express.Router()
@@ -45,6 +46,8 @@ router
   .post(upload.any(), updatePassword).delete(deleteUser)
 
 router.route('/make-user/:id').patch(upload.any(), MakeStaffUser)
+router.route('/mass-delete').post(massDeleteUsers).delete(massDeleteUsers)
+router.route('/delete/:id').delete(deleteUser)
 router.route('/').get(getUsers).post(upload.any(), createUser)
 
 export default router

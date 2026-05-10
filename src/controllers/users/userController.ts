@@ -188,6 +188,20 @@ export const deleteUser = async (req: Request, res: Response) => {
     handleError(res, undefined, undefined, error)
   }
 }
+
+export const massDeleteUsers = async (req: Request, res: Response) => {
+  try {
+    const { ids } = req.body
+    if (!ids || !Array.isArray(ids)) {
+      return res.status(400).json({ message: 'Invalid IDs provided' })
+    }
+    await User.deleteMany({ _id: { $in: ids } })
+    const result = await queryData<IUser>(User, req)
+    res.status(200).json({ message: 'Users deleted successfully', result })
+  } catch (error) {
+    handleError(res, undefined, undefined, error)
+  }
+}
 //-----------------INFO--------------------//
 export const getExistingUsername = async (
   req: Request,

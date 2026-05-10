@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getExistingUsername = exports.deleteUser = exports.getUsers = exports.deleteMyData = exports.MakeStaffUser = exports.MakeUserStaff = exports.suspendUsers = exports.searchAccounts = exports.updateUserStatus = exports.updateUser = exports.getAUser = exports.createUser = void 0;
+exports.getExistingUsername = exports.massDeleteUsers = exports.deleteUser = exports.getUsers = exports.deleteMyData = exports.MakeStaffUser = exports.MakeUserStaff = exports.suspendUsers = exports.searchAccounts = exports.updateUserStatus = exports.updateUser = exports.getAUser = exports.createUser = void 0;
 const errorHandler_1 = require("../../utils/errorHandler");
 const query_1 = require("../../utils/query");
 const fileUpload_1 = require("../../utils/fileUpload");
@@ -182,6 +182,21 @@ const deleteUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
     }
 });
 exports.deleteUser = deleteUser;
+const massDeleteUsers = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { ids } = req.body;
+        if (!ids || !Array.isArray(ids)) {
+            return res.status(400).json({ message: 'Invalid IDs provided' });
+        }
+        yield userModel_1.User.deleteMany({ _id: { $in: ids } });
+        const result = yield (0, query_1.queryData)(userModel_1.User, req);
+        res.status(200).json({ message: 'Users deleted successfully', result });
+    }
+    catch (error) {
+        (0, errorHandler_1.handleError)(res, undefined, undefined, error);
+    }
+});
+exports.massDeleteUsers = massDeleteUsers;
 //-----------------INFO--------------------//
 const getExistingUsername = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
