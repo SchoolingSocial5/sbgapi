@@ -44,10 +44,11 @@ const createConsumption = (req, res) => __awaiter(void 0, void 0, void 0, functi
             }
             // 2) Empty Bag Logic with Purchase Unit Sync
             if (pro.type === 'Feed') {
+                const bagUnits = consumptionAmount / (pro.unitPerPurchase || 1);
                 const emptyBag = yield productModel_1.Product.findOne({ pId: pro._id });
                 if (emptyBag) {
                     yield productModel_1.Product.findByIdAndUpdate(emptyBag._id, {
-                        $inc: { units: consumptionAmount },
+                        $inc: { units: bagUnits },
                         picture: pro.picture,
                         purchaseUnit: pro.purchaseUnit,
                     });
@@ -56,7 +57,7 @@ const createConsumption = (req, res) => __awaiter(void 0, void 0, void 0, functi
                     yield productModel_1.Product.create({
                         name: `Empty Bag of ${pro.name}`,
                         pId: pro._id,
-                        units: consumptionAmount,
+                        units: bagUnits,
                         unitPerPurchase: 1,
                         type: 'General',
                         isBuyable: true,
@@ -106,8 +107,9 @@ const deleteConsumption = (req, res) => __awaiter(void 0, void 0, void 0, functi
             if (pro.type === 'Feed') {
                 const emptyBag = yield productModel_1.Product.findOne({ pId: pro._id });
                 if (emptyBag) {
+                    const bagUnits = consumptionAmount / (pro.unitPerPurchase || 1);
                     yield productModel_1.Product.findByIdAndUpdate(emptyBag._id, {
-                        $inc: { units: -1 * consumptionAmount },
+                        $inc: { units: -1 * bagUnits },
                     });
                 }
             }
@@ -170,7 +172,8 @@ const updateConsumption = (req, res) => __awaiter(void 0, void 0, void 0, functi
                     if (pro.type === 'Feed') {
                         const emptyBag = yield productModel_1.Product.findOne({ pId: pro._id });
                         if (emptyBag) {
-                            yield productModel_1.Product.updateOne(Object.assign({ _id: emptyBag._id }, (diff > 0 ? { units: { $gte: diff } } : {})), { $inc: { units: -diff } });
+                            const diffInBags = diff / (pro.unitPerPurchase || 1);
+                            yield productModel_1.Product.updateOne(Object.assign({ _id: emptyBag._id }, (diffInBags > 0 ? { units: { $gte: diffInBags } } : {})), { $inc: { units: -diffInBags } });
                         }
                     }
                 }

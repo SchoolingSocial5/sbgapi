@@ -50,15 +50,32 @@ const requestLogger: RequestHandler = (req, res, next) => {
 
 app.use(requestLogger)
 
+const allowedOrigins = [
+  'https://sbgegg.netlify.app',
+  'https://sbgeggfarm.com',
+]
+
+const corsOrigin = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+  if (!origin) {
+    return callback(null, true)
+  }
+
+  const isLocalhost =
+    origin.startsWith('http://localhost:') ||
+    origin.startsWith('http://127.0.0.1:') ||
+    origin === 'http://localhost' ||
+    origin === 'http://127.0.0.1'
+
+  if (allowedOrigins.includes(origin) || isLocalhost) {
+    callback(null, true)
+  } else {
+    callback(new Error('Not allowed by CORS'))
+  }
+}
+
 app.use(
   cors({
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:3002',
-      'https://sbgegg.netlify.app',
-      'https://sbgeggfarm.com',
-    ],
+    origin: corsOrigin,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'socket-id'],
@@ -67,13 +84,7 @@ app.use(
 
 const io = new Server(server, {
   cors: {
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:3002',
-      'https://sbgegg.netlify.app',
-      'https://sbgeggfarm.com',
-    ],
+    origin: corsOrigin,
     methods: ['GET', 'POST'],
     credentials: true,
   },

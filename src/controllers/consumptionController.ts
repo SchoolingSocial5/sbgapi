@@ -46,10 +46,11 @@ export const createConsumption = async (
 
       // 2) Empty Bag Logic with Purchase Unit Sync
       if (pro.type === 'Feed') {
+        const bagUnits = consumptionAmount / (pro.unitPerPurchase || 1)
         const emptyBag = await Product.findOne({ pId: pro._id })
         if (emptyBag) {
           await Product.findByIdAndUpdate(emptyBag._id, {
-            $inc: { units: consumptionAmount },
+            $inc: { units: bagUnits },
             picture: pro.picture,
             purchaseUnit: pro.purchaseUnit, 
           })
@@ -57,7 +58,7 @@ export const createConsumption = async (
           await Product.create({
             name: `Empty Bag of ${pro.name}`,
             pId: pro._id,
-            units: consumptionAmount,
+            units: bagUnits,
             unitPerPurchase: 1,
             type: 'General',
             isBuyable: true,
@@ -110,8 +111,9 @@ export const deleteConsumption = async (req: Request, res: Response) => {
       if (pro.type === 'Feed') {
         const emptyBag = await Product.findOne({ pId: pro._id })
         if (emptyBag) {
+          const bagUnits = consumptionAmount / (pro.unitPerPurchase || 1)
           await Product.findByIdAndUpdate(emptyBag._id, {
-            $inc: { units: -1 * consumptionAmount },
+            $inc: { units: -1 * bagUnits },
           })
         }
       }
@@ -185,9 +187,10 @@ export const updateConsumption = async (req: Request, res: Response) => {
           if (pro.type === 'Feed') {
             const emptyBag = await Product.findOne({ pId: pro._id })
             if (emptyBag) {
+              const diffInBags = diff / (pro.unitPerPurchase || 1)
               await Product.updateOne(
-                { _id: emptyBag._id, ...(diff > 0 ? { units: { $gte: diff } } : {}) },
-                { $inc: { units: -diff } }
+                { _id: emptyBag._id, ...(diffInBags > 0 ? { units: { $gte: diffInBags } } : {}) },
+                { $inc: { units: -diffInBags } }
               )
             }
           }
