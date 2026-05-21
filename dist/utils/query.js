@@ -163,6 +163,8 @@ const buildFilterQuery = (req) => {
         ne: '$ne',
         in: '$in',
         nin: '$nin',
+        regex: '$regex',
+        options: '$options',
     };
     // Flatten nested query params like ?price[gte]=100
     const flattenQuery = (query) => {

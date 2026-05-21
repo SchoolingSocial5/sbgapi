@@ -189,6 +189,8 @@ export const buildFilterQuery = (req: Request): Record<string, any> => {
     ne: '$ne',
     in: '$in',
     nin: '$nin',
+    regex: '$regex',
+    options: '$options',
   }
 
   // Flatten nested query params like ?price[gte]=100
