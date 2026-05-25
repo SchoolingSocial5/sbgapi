@@ -273,6 +273,31 @@ const updateTransaction = (req, res) => __awaiter(void 0, void 0, void 0, functi
             }
             req.body.cartProducts = newCart;
         }
+        // Sync inventory if product changed (for purchases)
+        if (req.body.product) {
+            const newProduct = typeof req.body.product === 'string' ? JSON.parse(req.body.product) : req.body.product;
+            const oldProduct = oldTransaction.product;
+            if (oldProduct && newProduct) {
+                const diff = newProduct.cartUnits - oldProduct.cartUnits;
+                if (diff !== 0) {
+                    const amountChange = diff * (newProduct.unitPerPurchase || 1);
+                    // For purchases, if amountChange is negative (reducing purchase qty), we are removing items from inventory.
+                    // Let's verify we have enough stock before removing.
+                    if (amountChange < 0) {
+                        const product = yield productModel_1.Product.findById(newProduct._id);
+                        if (!product || product.units < Math.abs(amountChange)) {
+                            return res.status(400).json({
+                                message: `Cannot decrease purchase quantity. Insufficient stock remaining in inventory. Available: ${(product === null || product === void 0 ? void 0 : product.units) || 0}`
+                            });
+                        }
+                    }
+                    yield productModel_1.Product.findByIdAndUpdate(newProduct._id, {
+                        $inc: { units: amountChange },
+                    });
+                }
+            }
+            req.body.product = newProduct;
+        }
         yield transactionModel_1.Transaction.findByIdAndUpdate(req.params.id, req.body);
         const result = yield (0, query_1.queryData)(transactionModel_1.Transaction, req);
         res.status(200).json({

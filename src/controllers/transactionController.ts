@@ -301,6 +301,35 @@ export const updateTransaction = async (req: Request, res: Response) => {
       req.body.cartProducts = newCart
     }
 
+    // Sync inventory if product changed (for purchases)
+    if (req.body.product) {
+      const newProduct = typeof req.body.product === 'string' ? JSON.parse(req.body.product) : req.body.product
+      const oldProduct = oldTransaction.product
+
+      if (oldProduct && newProduct) {
+        const diff = newProduct.cartUnits - oldProduct.cartUnits
+        if (diff !== 0) {
+          const amountChange = diff * (newProduct.unitPerPurchase || 1)
+          
+          // For purchases, if amountChange is negative (reducing purchase qty), we are removing items from inventory.
+          // Let's verify we have enough stock before removing.
+          if (amountChange < 0) {
+            const product = await Product.findById(newProduct._id)
+            if (!product || product.units < Math.abs(amountChange)) {
+              return res.status(400).json({ 
+                message: `Cannot decrease purchase quantity. Insufficient stock remaining in inventory. Available: ${product?.units || 0}` 
+              })
+            }
+          }
+
+          await Product.findByIdAndUpdate(newProduct._id, {
+            $inc: { units: amountChange },
+          })
+        }
+      }
+      req.body.product = newProduct
+    }
+
     await Transaction.findByIdAndUpdate(req.params.id, req.body)
 
     const result = await queryData<ITransaction>(Transaction, req)
