@@ -13,6 +13,7 @@ import {
   searchProducts,
   updateProduct,
   updateProductStock,
+  transferLivestock,
 } from '../controllers/productController'
 
 const router = express.Router()
@@ -33,6 +34,7 @@ router
   .get(getAProduct)
   .patch(upload.any(), updateProduct)
   .delete(deleteProduct)
+router.route('/:id/transfer').patch(upload.any(), transferLivestock)
 router.route('/').get(getProducts).post(upload.any(), createProduct)
 
 export default router

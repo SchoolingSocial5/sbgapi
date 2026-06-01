@@ -291,3 +291,64 @@ export const getProductStocks = async (req: Request, res: Response) => {
     handleError(res, undefined, undefined, error)
   }
 }
+
+export const transferLivestock = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { fromPenId, toPenId, toPenName, quantity } = req.body
+    const unitsToTransfer = Number(quantity)
+
+    if (isNaN(unitsToTransfer) || unitsToTransfer <= 0) {
+      res.status(400).json({ message: 'Invalid quantity' })
+      return
+    }
+
+    const product = await Product.findById(req.params.id)
+    if (!product) {
+      res.status(404).json({ message: 'Product not found' })
+      return
+    }
+
+    if (!product.penDistributions) {
+      product.penDistributions = []
+    }
+
+    const fromDistribution = product.penDistributions.find(d => d.penId === fromPenId)
+    if (!fromDistribution || fromDistribution.units < unitsToTransfer) {
+      res.status(400).json({ message: 'Insufficient livestock in the source pen' })
+      return
+    }
+
+    // Deduct from source pen
+    fromDistribution.units -= unitsToTransfer
+
+    // Find or create destination pen
+    let toDistribution = product.penDistributions.find(d => d.penId === toPenId)
+    if (toDistribution) {
+      toDistribution.units += unitsToTransfer
+    } else {
+      product.penDistributions.push({
+        penId: toPenId,
+        penName: toPenName,
+        units: unitsToTransfer,
+        dateOfBirth: fromDistribution.dateOfBirth
+      })
+    }
+
+    // Remove source pen if units are 0
+    if (fromDistribution.units === 0) {
+      product.penDistributions = product.penDistributions.filter(d => d.penId !== fromPenId)
+    }
+
+    await product.save()
+    
+    // Using queryData to match existing structure 
+    const result = await queryData<IProduct>(Product, req)
+    
+    res.status(200).json({
+      message: 'Livestock transferred successfully',
+      result,
+    })
+  } catch (error: any) {
+    handleError(res, undefined, undefined, error)
+  }
+}

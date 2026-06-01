@@ -23,7 +23,7 @@ export interface IProduct extends Document {
   supAddress: string
   supPhone: string
   pId: string
-  penDistributions?: { penId: string; penName: string; units: number }[]
+  penDistributions?: { penId: string; penName: string; units: number; dateOfBirth?: Date }[]
 }
 
 const ProductSchema: Schema = new Schema(
@@ -53,6 +53,7 @@ const ProductSchema: Schema = new Schema(
         penId: { type: String },
         penName: { type: String },
         units: { type: Number, min: 0 },
+        dateOfBirth: { type: Date },
       },
     ],
     pId: { type: String },

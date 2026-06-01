@@ -22,5 +22,6 @@ router
     .get(productController_1.getAProduct)
     .patch(upload.any(), productController_1.updateProduct)
     .delete(productController_1.deleteProduct);
+router.route('/:id/transfer').patch(upload.any(), productController_1.transferLivestock);
 router.route('/').get(productController_1.getProducts).post(upload.any(), productController_1.createProduct);
 exports.default = router;

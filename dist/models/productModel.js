@@ -61,6 +61,7 @@ const ProductSchema = new mongoose_1.Schema({
             penId: { type: String },
             penName: { type: String },
             units: { type: Number, min: 0 },
+            dateOfBirth: { type: Date },
         },
     ],
     pId: { type: String },

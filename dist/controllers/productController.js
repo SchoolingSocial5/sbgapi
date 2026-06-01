@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getProductStocks = exports.deleteProductStocking = exports.updateProductStock = exports.postProductStock = exports.searchProducts = exports.deleteProduct = exports.getProducts = exports.updateProduct = exports.getAProduct = exports.createProduct = void 0;
+exports.transferLivestock = exports.getProductStocks = exports.deleteProductStocking = exports.updateProductStock = exports.postProductStock = exports.searchProducts = exports.deleteProduct = exports.getProducts = exports.updateProduct = exports.getAProduct = exports.createProduct = void 0;
 const productModel_1 = require("../models/productModel");
 const query_1 = require("../utils/query");
 const fileUpload_1 = require("../utils/fileUpload");
@@ -258,3 +258,56 @@ const getProductStocks = (req, res) => __awaiter(void 0, void 0, void 0, functio
     }
 });
 exports.getProductStocks = getProductStocks;
+const transferLivestock = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { fromPenId, toPenId, toPenName, quantity } = req.body;
+        const unitsToTransfer = Number(quantity);
+        if (isNaN(unitsToTransfer) || unitsToTransfer <= 0) {
+            res.status(400).json({ message: 'Invalid quantity' });
+            return;
+        }
+        const product = yield productModel_1.Product.findById(req.params.id);
+        if (!product) {
+            res.status(404).json({ message: 'Product not found' });
+            return;
+        }
+        if (!product.penDistributions) {
+            product.penDistributions = [];
+        }
+        const fromDistribution = product.penDistributions.find(d => d.penId === fromPenId);
+        if (!fromDistribution || fromDistribution.units < unitsToTransfer) {
+            res.status(400).json({ message: 'Insufficient livestock in the source pen' });
+            return;
+        }
+        // Deduct from source pen
+        fromDistribution.units -= unitsToTransfer;
+        // Find or create destination pen
+        let toDistribution = product.penDistributions.find(d => d.penId === toPenId);
+        if (toDistribution) {
+            toDistribution.units += unitsToTransfer;
+        }
+        else {
+            product.penDistributions.push({
+                penId: toPenId,
+                penName: toPenName,
+                units: unitsToTransfer,
+                dateOfBirth: fromDistribution.dateOfBirth
+            });
+        }
+        // Remove source pen if units are 0
+        if (fromDistribution.units === 0) {
+            product.penDistributions = product.penDistributions.filter(d => d.penId !== fromPenId);
+        }
+        yield product.save();
+        // Using queryData to match existing structure 
+        const result = yield (0, query_1.queryData)(productModel_1.Product, req);
+        res.status(200).json({
+            message: 'Livestock transferred successfully',
+            result,
+        });
+    }
+    catch (error) {
+        (0, errorHandler_1.handleError)(res, undefined, undefined, error);
+    }
+});
+exports.transferLivestock = transferLivestock;
