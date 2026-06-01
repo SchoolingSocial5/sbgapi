@@ -1,4 +1,5 @@
 import { Request, Response } from 'express'
+import mongoose from 'mongoose'
 import { queryData } from '../utils/query'
 import { handleError } from '../utils/errorHandler'
 import { ITransaction, Transaction } from '../models/transactionModel'
@@ -11,8 +12,10 @@ import { io } from '../app'
 export const purchaseProducts = async (req: Request, res: Response) => {
   try {
     const product = req.body.product
+    const parsedCartUnits = Number(product.cartUnits) || 0;
+    const parsedUnitPerPurchase = Number(product.unitPerPurchase) || 1;
     await Product.findByIdAndUpdate(product._id, {
-      $inc: { units: product.cartUnits * (product.unitPerPurchase || 1) },
+      $inc: { units: parsedCartUnits * parsedUnitPerPurchase },
     })
     await Transaction.create(req.body)
 
@@ -139,17 +142,23 @@ export const createTrasanction = async (req: Request, res: Response) => {
       }
     }
 
-    const bulkOps = cartProducts.map((cartItem) => ({
-      updateOne: {
-        filter: { 
-          _id: cartItem._id,
-          units: { $gte: cartItem.cartUnits * (cartItem.unitPerPurchase || 1) }
+    const bulkOps = cartProducts.map((cartItem) => {
+      const parsedCartUnits = Number(cartItem.cartUnits) || 0;
+      const parsedUnitPerPurchase = Number(cartItem.unitPerPurchase) || 1;
+      const amountToDeduct = parsedCartUnits * parsedUnitPerPurchase;
+
+      return {
+        updateOne: {
+          filter: { 
+            _id: new mongoose.Types.ObjectId(cartItem._id),
+            units: { $gte: amountToDeduct }
+          },
+          update: {
+            $inc: { units: -amountToDeduct },
+          },
         },
-        update: {
-          $inc: { units: -cartItem.cartUnits * (cartItem.unitPerPurchase || 1) },
-        },
-      },
-    }))
+      };
+    })
 
     const bulkResult = await Product.bulkWrite(bulkOps)
     if (bulkResult.modifiedCount !== cartProducts.length) {
@@ -234,8 +243,10 @@ export const massDeleteTrasanction = async (req: Request, res: Response) => {
       const tx = transactions[x]
       for (let i = 0; i < tx.cartProducts.length; i++) {
         const cart = tx.cartProducts[i]
+        const parsedCartUnits = Number(cart.cartUnits) || 0;
+        const parsedUnitPerPurchase = Number(cart.unitPerPurchase) || 1;
         await Product.findByIdAndUpdate(cart._id, {
-          $inc: { units: cart.cartUnits * cart.unitPerPurchase },
+          $inc: { units: parsedCartUnits * parsedUnitPerPurchase },
         })
       }
     }
@@ -278,9 +289,12 @@ export const updateTransaction = async (req: Request, res: Response) => {
       for (const newItem of newCart) {
         const oldItem = oldCart.find((oi: any) => oi._id.toString() === newItem._id.toString())
         if (oldItem) {
-          const diff = oldItem.cartUnits - newItem.cartUnits
+          const parsedOldCartUnits = Number(oldItem.cartUnits) || 0;
+          const parsedNewCartUnits = Number(newItem.cartUnits) || 0;
+          const parsedUnitPerPurchase = Number(newItem.unitPerPurchase) || 1;
+          const diff = parsedOldCartUnits - parsedNewCartUnits
           if (diff !== 0) {
-            const amountChange = diff * (newItem.unitPerPurchase || 1)
+            const amountChange = diff * parsedUnitPerPurchase
             
             // If we are increasing quantity (diff is negative), check stock
             if (amountChange < 0) {
@@ -307,9 +321,12 @@ export const updateTransaction = async (req: Request, res: Response) => {
       const oldProduct = oldTransaction.product
 
       if (oldProduct && newProduct) {
-        const diff = newProduct.cartUnits - oldProduct.cartUnits
+        const parsedOldCartUnits = Number(oldProduct.cartUnits) || 0;
+        const parsedNewCartUnits = Number(newProduct.cartUnits) || 0;
+        const parsedUnitPerPurchase = Number(newProduct.unitPerPurchase) || 1;
+        const diff = parsedNewCartUnits - parsedOldCartUnits
         if (diff !== 0) {
-          const amountChange = diff * (newProduct.unitPerPurchase || 1)
+          const amountChange = diff * parsedUnitPerPurchase
           
           // For purchases, if amountChange is negative (reducing purchase qty), we are removing items from inventory.
           // Let's verify we have enough stock before removing.

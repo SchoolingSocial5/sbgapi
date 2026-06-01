@@ -8,8 +8,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GetTransactionSummary = exports.updateTransaction = exports.getTransactions = exports.massDeleteTrasanction = exports.createTrasanction = exports.updatePartPayment = exports.purchaseProducts = void 0;
+const mongoose_1 = __importDefault(require("mongoose"));
 const query_1 = require("../utils/query");
 const errorHandler_1 = require("../utils/errorHandler");
 const transactionModel_1 = require("../models/transactionModel");
@@ -21,8 +25,10 @@ const app_1 = require("../app");
 const purchaseProducts = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const product = req.body.product;
+        const parsedCartUnits = Number(product.cartUnits) || 0;
+        const parsedUnitPerPurchase = Number(product.unitPerPurchase) || 1;
         yield productModel_1.Product.findByIdAndUpdate(product._id, {
-            $inc: { units: product.cartUnits * (product.unitPerPurchase || 1) },
+            $inc: { units: parsedCartUnits * parsedUnitPerPurchase },
         });
         yield transactionModel_1.Transaction.create(req.body);
         const result = yield (0, query_1.queryData)(productModel_1.Product, req);
@@ -130,17 +136,22 @@ const createTrasanction = (req, res) => __awaiter(void 0, void 0, void 0, functi
                 });
             }
         }
-        const bulkOps = cartProducts.map((cartItem) => ({
-            updateOne: {
-                filter: {
-                    _id: cartItem._id,
-                    units: { $gte: cartItem.cartUnits * (cartItem.unitPerPurchase || 1) }
+        const bulkOps = cartProducts.map((cartItem) => {
+            const parsedCartUnits = Number(cartItem.cartUnits) || 0;
+            const parsedUnitPerPurchase = Number(cartItem.unitPerPurchase) || 1;
+            const amountToDeduct = parsedCartUnits * parsedUnitPerPurchase;
+            return {
+                updateOne: {
+                    filter: {
+                        _id: new mongoose_1.default.Types.ObjectId(cartItem._id),
+                        units: { $gte: amountToDeduct }
+                    },
+                    update: {
+                        $inc: { units: -amountToDeduct },
+                    },
                 },
-                update: {
-                    $inc: { units: -cartItem.cartUnits * (cartItem.unitPerPurchase || 1) },
-                },
-            },
-        }));
+            };
+        });
         const bulkResult = yield productModel_1.Product.bulkWrite(bulkOps);
         if (bulkResult.modifiedCount !== cartProducts.length) {
             return res.status(400).json({
@@ -213,8 +224,10 @@ const massDeleteTrasanction = (req, res) => __awaiter(void 0, void 0, void 0, fu
             const tx = transactions[x];
             for (let i = 0; i < tx.cartProducts.length; i++) {
                 const cart = tx.cartProducts[i];
+                const parsedCartUnits = Number(cart.cartUnits) || 0;
+                const parsedUnitPerPurchase = Number(cart.unitPerPurchase) || 1;
                 yield productModel_1.Product.findByIdAndUpdate(cart._id, {
-                    $inc: { units: cart.cartUnits * cart.unitPerPurchase },
+                    $inc: { units: parsedCartUnits * parsedUnitPerPurchase },
                 });
             }
         }
@@ -253,9 +266,12 @@ const updateTransaction = (req, res) => __awaiter(void 0, void 0, void 0, functi
             for (const newItem of newCart) {
                 const oldItem = oldCart.find((oi) => oi._id.toString() === newItem._id.toString());
                 if (oldItem) {
-                    const diff = oldItem.cartUnits - newItem.cartUnits;
+                    const parsedOldCartUnits = Number(oldItem.cartUnits) || 0;
+                    const parsedNewCartUnits = Number(newItem.cartUnits) || 0;
+                    const parsedUnitPerPurchase = Number(newItem.unitPerPurchase) || 1;
+                    const diff = parsedOldCartUnits - parsedNewCartUnits;
                     if (diff !== 0) {
-                        const amountChange = diff * (newItem.unitPerPurchase || 1);
+                        const amountChange = diff * parsedUnitPerPurchase;
                         // If we are increasing quantity (diff is negative), check stock
                         if (amountChange < 0) {
                             const product = yield productModel_1.Product.findById(newItem._id);
@@ -278,9 +294,12 @@ const updateTransaction = (req, res) => __awaiter(void 0, void 0, void 0, functi
             const newProduct = typeof req.body.product === 'string' ? JSON.parse(req.body.product) : req.body.product;
             const oldProduct = oldTransaction.product;
             if (oldProduct && newProduct) {
-                const diff = newProduct.cartUnits - oldProduct.cartUnits;
+                const parsedOldCartUnits = Number(oldProduct.cartUnits) || 0;
+                const parsedNewCartUnits = Number(newProduct.cartUnits) || 0;
+                const parsedUnitPerPurchase = Number(newProduct.unitPerPurchase) || 1;
+                const diff = parsedNewCartUnits - parsedOldCartUnits;
                 if (diff !== 0) {
-                    const amountChange = diff * (newProduct.unitPerPurchase || 1);
+                    const amountChange = diff * parsedUnitPerPurchase;
                     // For purchases, if amountChange is negative (reducing purchase qty), we are removing items from inventory.
                     // Let's verify we have enough stock before removing.
                     if (amountChange < 0) {

@@ -270,11 +270,15 @@ const buildSortingQuery = (req) => {
 };
 const MODELS_WITH_SUMMARY = ['Transaction', 'Stocking', 'Operation', 'Consumption'];
 const queryData = (model, req) => __awaiter(void 0, void 0, void 0, function* () {
-    const page_size = parseInt(req.query.page_size, 10) || 10;
+    let page_size = parseInt(req.query.page_size, 10) || 10;
     const page = parseInt(req.query.page, 10) || 1;
     const filters = (0, exports.buildFilterQuery)(req);
     const sort = buildSortingQuery(req);
     const count = yield model.countDocuments(filters);
+    const hasDateRange = (req.query.dateFrom && req.query.dateFrom !== 'null') || (req.query.dateTo && req.query.dateTo !== 'null');
+    if (hasDateRange && count > 0) {
+        page_size = count;
+    }
     const results = yield model
         .find(filters)
         .skip((page - 1) * page_size)

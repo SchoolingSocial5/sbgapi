@@ -308,13 +308,19 @@ export const queryData = async <T>(
   model: Model<T>,
   req: Request
 ): Promise<PaginationResult<T>> => {
-  const page_size = parseInt(req.query.page_size as string, 10) || 10
+  let page_size = parseInt(req.query.page_size as string, 10) || 10
   const page = parseInt(req.query.page as string, 10) || 1
 
   const filters = buildFilterQuery(req)
   const sort = buildSortingQuery(req)
 
   const count = await model.countDocuments(filters)
+  
+  const hasDateRange = (req.query.dateFrom && req.query.dateFrom !== 'null') || (req.query.dateTo && req.query.dateTo !== 'null')
+  if (hasDateRange && count > 0) {
+    page_size = count
+  }
+
   const results = await model
     .find(filters)
     .skip((page - 1) * page_size)
