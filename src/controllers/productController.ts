@@ -294,7 +294,7 @@ export const getProductStocks = async (req: Request, res: Response) => {
 
 export const transferLivestock = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { fromPenId, toPenId, toPenName, quantity } = req.body
+    const { fromPenId, toPenId, toPenName, quantity, transferAs } = req.body
     const unitsToTransfer = Number(quantity)
 
     if (isNaN(unitsToTransfer) || unitsToTransfer <= 0) {
@@ -318,35 +318,82 @@ export const transferLivestock = async (req: Request, res: Response): Promise<vo
       return
     }
 
-    // Deduct from source pen
-    fromDistribution.units -= unitsToTransfer
+    const targetName = transferAs ? transferAs.trim() : product.name
 
-    // Find or create destination pen
-    let toDistribution = product.penDistributions.find(d => d.penId === toPenId)
-    if (toDistribution) {
-      toDistribution.units += unitsToTransfer
+    if (targetName !== product.name) {
+      // Inter-product transfer
+      product.units -= unitsToTransfer
+      fromDistribution.units -= unitsToTransfer
+      if (fromDistribution.units === 0) {
+        product.penDistributions = product.penDistributions.filter(d => d.penId !== fromPenId)
+      }
+      await product.save()
+
+      let targetProduct = await Product.findOne({ name: targetName })
+      
+      if (targetProduct) {
+        // Increment existing product
+        targetProduct.units += unitsToTransfer
+        if (!targetProduct.penDistributions) targetProduct.penDistributions = []
+        let toDistribution = targetProduct.penDistributions.find(d => d.penId === toPenId)
+        if (toDistribution) {
+          toDistribution.units += unitsToTransfer
+        } else {
+          targetProduct.penDistributions.push({
+            penId: toPenId,
+            penName: toPenName,
+            units: unitsToTransfer,
+            dateOfBirth: fromDistribution.dateOfBirth
+          })
+        }
+        await targetProduct.save()
+      } else {
+        // Create new product copying source traits
+        const newProductData = { ...product.toObject() }
+        delete (newProductData as any)._id
+        delete (newProductData as any).createdAt
+        delete (newProductData as any).updatedAt
+        
+        newProductData.name = targetName
+        newProductData.units = unitsToTransfer
+        newProductData.penDistributions = [{
+          penId: toPenId,
+          penName: toPenName,
+          units: unitsToTransfer,
+          dateOfBirth: fromDistribution.dateOfBirth
+        }]
+        
+        await Product.create(newProductData)
+      }
     } else {
-      product.penDistributions.push({
-        penId: toPenId,
-        penName: toPenName,
-        units: unitsToTransfer,
-        dateOfBirth: fromDistribution.dateOfBirth
-      })
+      // Normal intra-product transfer
+      fromDistribution.units -= unitsToTransfer
+      let toDistribution = product.penDistributions.find(d => d.penId === toPenId)
+      if (toDistribution) {
+        toDistribution.units += unitsToTransfer
+      } else {
+        product.penDistributions.push({
+          penId: toPenId,
+          penName: toPenName,
+          units: unitsToTransfer,
+          dateOfBirth: fromDistribution.dateOfBirth
+        })
+      }
+
+      if (fromDistribution.units === 0) {
+        product.penDistributions = product.penDistributions.filter(d => d.penId !== fromPenId)
+      }
+      await product.save()
+    }
+    let returnProducts = [product]
+    if (targetName !== product.name) {
+      const createdTarget = await Product.findOne({ name: targetName })
+      if (createdTarget) returnProducts.push(createdTarget)
     }
 
-    // Remove source pen if units are 0
-    if (fromDistribution.units === 0) {
-      product.penDistributions = product.penDistributions.filter(d => d.penId !== fromPenId)
-    }
-
-    await product.save()
-    
-    // Using queryData to match existing structure 
-    const result = await queryData<IProduct>(Product, req)
-    
     res.status(200).json({
       message: 'Livestock transferred successfully',
-      result,
+      updatedProducts: returnProducts
     })
   } catch (error: any) {
     handleError(res, undefined, undefined, error)
